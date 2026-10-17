@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Canvas Viewer</title>
+<style>
+    body { margin: 0; background: #888; font-family: sans-serif; }
+    .toolbar { padding: 8px; background: #fff; position: sticky; top: 0; z-index: 1; }
+    #pdfStatus { margin-left: 8px; font-size: 14px; color: #555; }
+    #pdfViewer { width: 100%; }
+    #pdfViewer canvas { display: block; margin: 8px auto; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <!-- 実運用では form#complete を使って fetchPdfBlob を呼ぶ。ここは動作確認用 -->
+    <input type="file" id="testFile" accept="application/pdf">
+    <span id="pdfStatus"></span>
+</div>
+<div id="pdfViewer"></div>
+
+<!-- v3 系はグローバル `pdfjsLib` が使える。v4 以降は ESM のみ。実運用では自サーバーに配置推奨 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // cmaps / standard_fonts の配置先（末尾スラッシュ必須）
+    // 本番では自サーバーに配置した URL に変更推奨（例: '/Scripts/pdfjs/'）
+    var PDFJS_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
+
+    // canvas の最大ピクセル数（Android WebView の上限対策）
+    var MAX_CANVAS_PIXELS = 16 * 1000 * 1000;
+    // 描画解像度の上限（メモリ対策）
+    var MAX_DPR = 2;
+
+    // Blob を Uint8Array に変換する
+    function blobToUint8Array(blob) {
+        if (blob.arrayBuffer) {
+            return blob.arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+        }
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () { resolve(new Uint8Array(reader.result)); };
+            reader.onerror = function () { reject(reader.error); };
+            reader.readAsArrayBuffer(blob);
+        });
+    }
+
+    // formの内容をPOSTしてPDFのBlobを取得する
+    // Content-Disposition: attachment が付いていても fetch ならダウンロード扱いにならない
+    async function fetchPdfBlob(form, extraParams) {
+        var params = new URLSearchParams(new FormData(form));
+        Object.keys(extraParams || {}).forEach(function (key) {
+            params.set(key, extraParams[key]);
+        });
+
+        var res = await fetch(form.action, {
+            method: (form.method || 'POST').toUpperCase(),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: params.toString(),
+            credentials: 'same-origin'
+        });
+        if (!res.ok) {
+            throw new Error('PDFの取得に失敗しました。(HTTP ' + res.status + ')');
+        }
+        var contentType = res.headers.get('Content-Type') || '';
+        if (contentType.indexOf('application/pdf') === -1) {
+            throw new Error('PDF以外のレスポンスが返されました。(' + contentType + ')');
+        }
+        return res.blob();
+    }
+
+    // Blob の PDF を container 内に canvas として全ページ描画する
+    async function renderPdfBlob(blob, container, onProgress) {
+        var data = await blobToUint8Array(blob);
+        var loadingTask = pdfjsLib.getDocument({
+            data: data,
+            // 日本語フォント（非埋め込み）の文字コード変換に必要
+            cMapUrl: PDFJS_ASSET_BASE + 'cmaps/',
+            cMapPacked: true,
+            // 標準14フォント（非埋め込み）のフォールバックに必要
+            standardFontDataUrl: PDFJS_ASSET_BASE + 'standard_fonts/'
+        });
+        var pdf = await loadingTask.promise;
+
+        try {
+            container.innerHTML = '';
+            var cssWidth = container.clientWidth || document.documentElement.clientWidth;
+            var dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+
+            for (var pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                var page = await pdf.getPage(pageNum);
+
+                // 幅に合わせた表示倍率を計算
+                var base = page.getViewport({ scale: 1 });
+                var fitScale = cssWidth / base.width;
+                var renderScale = fitScale * dpr;
+
+                // canvas のピクセル数が上限を超える場合は縮小
+                var pixels = base.width * renderScale * base.height * renderScale;
+                if (pixels > MAX_CANVAS_PIXELS) {
+                    renderScale *= Math.sqrt(MAX_CANVAS_PIXELS / pixels);
+                }
+                var viewport = page.getViewport({ scale: renderScale });
+
+                var canvas = document.createElement('canvas');
+                canvas.width = Math.floor(viewport.width);
+                canvas.height = Math.floor(viewport.height);
+                canvas.style.width = cssWidth + 'px';
+                canvas.style.height = Math.floor(cssWidth * base.height / base.width) + 'px';
+                container.appendChild(canvas);
+
+                await page.render({
+                    canvasContext: canvas.getContext('2d'),
+                    viewport: viewport,
+                    // フォーム欄（AcroForm）の入力値も canvas に描画する
+                    annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE
+                }).promise;
+
+                page.cleanup();
+                if (onProgress) onProgress(pageNum, pdf.numPages);
+            }
+        } finally {
+            // ワーカー側のメモリを解放
+            await pdf.destroy();
+        }
+    }
+
+    // 外部から使えるように公開
+    window.PdfCanvasViewer = {
+        fetchPdfBlob: fetchPdfBlob,
+        renderPdfBlob: renderPdfBlob
+    };
+
+    // ---- 使用例1：既存の form#complete をPOSTして表示 ----
+    window.showPdfForWebView = async function () {
+        var status = document.getElementById('pdfStatus');
+        var viewer = document.getElementById('pdfViewer');
+        try {
+            status.textContent = '読み込み中...';
+            var form = document.getElementById('complete');
+            var blob = await fetchPdfBlob(form, { cmbConf: '2' });
+            await renderPdfBlob(blob, viewer, function (current, total) {
+                status.textContent = current + ' / ' + total + ' ページ';
+            });
+            status.textContent = '';
+        } catch (e) {
+            status.textContent = '表示に失敗しました。';
+            console.error(e);
+        }
+    };
+
+    // ---- 使用例2：ローカルのPDFファイルで動作確認 ----
+    document.getElementById('testFile').addEventListener('change', async function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var status = document.getElementById('pdfStatus');
+        try {
+            await renderPdfBlob(file, document.getElementById('pdfViewer'), function (c, t) {
+                status.textContent = c + ' / ' + t + ' ページ';
+            });
+            status.textContent = '';
+        } catch (err) {
+            status.textContent = '表示に失敗しました。';
+            console.error(err);
+        }
+    });
+})();
+</script>
+</body>
+</html>
