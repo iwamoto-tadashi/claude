@@ -1,0 +1,1606 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HintText開発ログ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 1 column transcript. Fixed label column on the left, message body on the right; groups split by topic. */
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --fg: #1b2431;
+  --muted: #5b6676;
+  --line: #dce2ea;
+  --accent: #1d5cb8;
+  --accent-soft: #e5edf9;
+  --user-bg: #e8eef7;
+  --code-bg: #0f1a2b;
+  --code-fg: #d9e4f4;
+  --inline-code-bg: #e9edf3;
+  --font-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d131c;
+    --surface: #141c28;
+    --fg: #e2e8f0;
+    --muted: #9aa6b7;
+    --line: #263244;
+    --accent: #72a6f2;
+    --accent-soft: #1a2a44;
+    --user-bg: #172339;
+    --code-bg: #09101a;
+    --code-fg: #d4dff0;
+    --inline-code-bg: #1e293a;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.85;
+}
+.page {
+  max-width: 840px;
+  margin: 0 auto;
+  padding-block: 48px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.eyebrow { font-size: 12px; letter-spacing: 0.14em; color: var(--muted); margin: 0; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.3; margin: 8px 0 16px; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; margin: 0 0 8px; }
+.note { color: var(--muted); font-size: 13px; max-width: 62ch; margin: 0 0 28px; }
+
+.toc { list-style: none; margin: 0 0 24px; padding: 0; border-top: 1px solid var(--line); }
+.toc li { display: flex; gap: 16px; justify-content: space-between; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.toc a { color: var(--fg); font-weight: 700; text-decoration: none; }
+.toc a:hover { color: var(--accent); text-decoration: underline; }
+.toc .range { color: var(--muted); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+h2.group { font-size: 22px; line-height: 1.4; margin: 64px 0 4px; padding-bottom: 10px; border-bottom: 2px solid var(--fg); text-wrap: balance; }
+
+.turn { padding-block: 28px; border-bottom: 1px solid var(--line); }
+.msg { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); column-gap: 16px; }
+.msg + .msg { margin-top: 20px; }
+.who { font-size: 12px; letter-spacing: 0.06em; color: var(--muted); padding-top: 5px; font-variant-numeric: tabular-nums; }
+.who b { display: block; color: var(--accent); font-size: 13px; letter-spacing: 0.04em; }
+.q .body { background: var(--user-bg); padding: 12px 16px; border-radius: 4px; }
+.body { min-width: 0; overflow-wrap: anywhere; }
+.body > :last-child { margin-bottom: 0; }
+.body p { margin: 0 0 0.9em; }
+.body h4 { font-size: 15px; margin: 1.5em 0 0.4em; line-height: 1.6; }
+.body ul, .body ol { padding-left: 1.4em; margin: 0 0 1em; }
+.body li { margin: 0.3em 0; }
+.body strong { font-weight: 700; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--inline-code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+pre { background: var(--code-bg); color: var(--code-fg); padding: 14px 16px; overflow-x: auto; border-radius: 4px; margin: 0 0 1em; font-size: 13px; line-height: 1.6; tab-size: 4; }
+pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+
+details.code { margin: 0 0 1em; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 9px 14px; font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+details.code summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.code pre { margin: 0; border-radius: 0 0 3px 3px; max-height: 620px; overflow: auto; }
+
+.tool, .attach { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--muted); border: 1px dashed var(--line); padding: 6px 10px; margin: 0 0 1em; border-radius: 3px; }
+.q .attach { border-color: var(--muted); }
+
+.tablewrap { overflow-x: auto; margin: 0 0 1em; }
+table { border-collapse: collapse; width: 100%; min-width: 540px; font-size: 14.5px; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; line-height: 1.65; }
+th { background: var(--accent-soft); }
+
+.figs { display: flex; flex-wrap: wrap; gap: 22px; margin: 0 0 1em; }
+.figs figure { margin: 0; text-align: center; font-size: 12.5px; color: var(--muted); max-width: 120px; line-height: 1.5; }
+.figs img { display: block; width: 96px; height: 96px; margin: 0 auto 6px; }
+
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 600px) {
+  .page { padding-block: 32px 56px; }
+  .msg { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+  .who b { display: inline; margin-right: 8px; }
+  .toc li { flex-direction: column; gap: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <p class="eyebrow">チャットログ ・ 2026年10月17日</p>
+  <h1>HintText開発ログ</h1>
+  <p class="lede">ヒントメッセージのメンテナンス機能（HintTextアップロード）に関する相談を、順番どおりに書き出したものです。文字コード判定、アイコン作成、Service層とRepository層の設計まで、20ターンあります。</p>
+  <p class="note">長い回答は要点を残して整えています。作成したコードは、ファイルの全文を各ターンの中に折りたたんで収録しています。</p>
+  <ol class="toc">
+    <li><a href="#g1">文字コード判定</a><span class="range">ターン 1〜8</span></li>
+    <li><a href="#g2">アイコンの作成</a><span class="range">ターン 9〜11</span></li>
+    <li><a href="#g3">Service層とRepository層の設計</a><span class="range">ターン 12〜19</span></li>
+    <li><a href="#g4">この書き出し</a><span class="range">ターン 20</span></li>
+  </ol>
+</header>
+
+<!-- ============ GROUP 1 ============ -->
+<h2 class="group" id="g1">文字コード判定</h2>
+
+<!-- 1 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#01</div><div class="body">
+    <p>c#でstreamから文字コードを判定する関数を作成してください</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>日本語の文書処理（CSVアップロードなど）でよく使う、BOM判定＋ヒューリスティックによる文字コード判定関数を作成します。外部ライブラリなしで実装し、UTF-8 / Shift-JIS(CP932) / EUC-JP / UTF-16(BOM) を判定できるようにします。</p>
+    <p class="tool">ファイル作成 ・ EncodingDetector.cs（この時点では .NET Core/5+ 向けで <code>CodePagesEncodingProvider</code> を登録）</p>
+    <p>使い方はこんな感じです。</p>
+<pre><code>using (var fs = File.OpenRead(@"C:\path\to\file.csv"))
+{
+    Encoding encoding = EncodingDetector.DetectEncoding(fs);
+    Console.WriteLine(encoding.WebName); // shift_jis, utf-8, euc-jp など
+
+    fs.Position = 0;
+    using var reader = new StreamReader(fs, encoding);
+    string content = reader.ReadToEnd();
+}</code></pre>
+    <h4>判定ロジックのポイント</h4>
+    <ol>
+      <li><strong>BOM判定を最優先</strong>。UTF-8/UTF-16(LE/BE)/UTF-32のBOMがあれば即座に確定します。</li>
+      <li><strong>BOMが無い場合はバイトパターンの妥当性チェック</strong>。UTF-8として不正な並びがないか厳密に検証し、次にEUC-JP、最後にShift-JIS(CP932)の順で判定します。Shift-JISの2バイト目の許容範囲が広く誤検知しやすいため、この順序にしています。</li>
+      <li><strong>判定不能な場合はShift-JISにフォールバック</strong>。日本語の業務システムではShift-JISが既定のことが多いための実務的な選択です。</li>
+    </ol>
+    <h4>注意点・制約</h4>
+    <ul>
+      <li>ヒューリスティック判定なので、短い文字列や特定のバイト列では誤判定の可能性があります。ASCII文字のみのファイルはUTF-8扱いにフォールバックする設計です。</li>
+      <li>より高精度な判定が必要なら、<code>Ude.NetStandard</code>（Mozilla Universal Charset Detector の.NET移植）のNuGetパッケージも検討する価値があります。</li>
+      <li><code>.NET Core/5+</code> では <code>CodePagesEncodingProvider</code> の登録が必要なため、静的コンストラクタで登録しています。</li>
+    </ul>
+    <p>CSVアップロード機能などで使う想定でしょうか？もしその用途なら、<code>StreamReader</code>との組み合わせ部分や、判定失敗時のエラー表示なども含めて調整できます。</p>
+  </div></div>
+</section>
+
+<!-- 2 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#02</div><div class="body">
+    <p>.net frame workで使用したいです。</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>.NET Frameworkでは <code>Shift-JIS</code> や <code>EUC-JP</code> などのコードページは標準で利用可能なので、<code>CodePagesEncodingProvider</code> の登録は不要です。該当箇所を削除しました。</p>
+    <p class="tool">ファイル編集 ・ EncodingDetector.cs / ファイル送信</p>
+    <h4>変更点</h4>
+    <ul>
+      <li>静的コンストラクタでの <code>CodePagesEncodingProvider.Instance</code> 登録を削除しました。.NET Frameworkは元々全コードページにアクセス可能なので、<code>Encoding.GetEncoding("shift_jis")</code> などがそのまま動作します。</li>
+      <li><code>System.Text.Encoding.CodePages</code> パッケージへの参照も不要です。</li>
+    </ul>
+    <p>BOM判定、UTF-8/Shift-JIS/EUC-JPのバイトパターン判定ロジックはそのまま.NET Framework 4.x系で動きます。</p>
+  </div></div>
+</section>
+
+<!-- 3 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#03</div><div class="body">
+    <p>名前空間は　namespace CommonUtils.Utility　で問題ないですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>問題ありません。ファイル内の <code>namespace Utils</code> を <code>namespace CommonUtils.Utility</code> に変更しました。</p>
+    <p class="tool">ファイル編集 ・ EncodingDetector.cs / ファイル送信</p>
+    <details class="code"><summary>EncodingDetector.cs ・ 全文 278行</summary><pre><code>using System;
+using System.IO;
+using System.Text;
+
+namespace CommonUtils.Utility
+{
+    /// &lt;summary&gt;
+    /// ストリームから文字コードを判定するユーティリティ。
+    /// 1. BOM (UTF-8 / UTF-16LE / UTF-16BE / UTF-32) をチェック
+    /// 2. BOM が無い場合はバイト列のパターンから UTF-8 / Shift-JIS(CP932) / EUC-JP を推定
+    /// 外部ライブラリ不要。ただし精度が重要な場合は Ude.NetStandard 等の
+    /// Mozilla Universal Charset Detector 系ライブラリの利用も検討してください。
+    /// &lt;/summary&gt;
+    public static class EncodingDetector
+    {
+        // .NET Frameworkでは Shift-JIS / EUC-JP 等のコードページは標準で
+        // 利用可能なため、CodePagesEncodingProvider の登録は不要です。
+        // （.NET Core/5+ に移植する場合は System.Text.Encoding.CodePages を参照し、
+        //   Encoding.RegisterProvider(CodePagesEncodingProvider.Instance) を
+        //   アプリ起動時に一度呼び出してください）
+
+        /// &lt;summary&gt;
+        /// ストリームの内容から文字コードを判定します。
+        /// 呼び出し後、stream の位置は先頭(Position = 0)に戻されます（Seek可能な場合）。
+        /// &lt;/summary&gt;
+        /// &lt;param name="stream"&gt;判定対象のストリーム（Seek可能である必要があります）&lt;/param&gt;
+        /// &lt;param name="sampleSize"&gt;判定に使用する先頭バイト数（既定 32KB）&lt;/param&gt;
+        public static Encoding DetectEncoding(Stream stream, int sampleSize = 32 * 1024)
+        {
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanSeek) throw new ArgumentException("Seek可能なストリームを指定してください。", nameof(stream));
+
+            long originalPosition = stream.Position;
+            stream.Position = 0;
+
+            try
+            {
+                int lengthToRead = (int)Math.Min(sampleSize, stream.Length);
+                byte[] buffer = new byte[lengthToRead];
+                int readBytes = 0;
+                while (readBytes &lt; lengthToRead)
+                {
+                    int n = stream.Read(buffer, readBytes, lengthToRead - readBytes);
+                    if (n == 0) break;
+                    readBytes += n;
+                }
+                if (readBytes &lt; buffer.Length)
+                {
+                    Array.Resize(ref buffer, readBytes);
+                }
+
+                return DetectEncoding(buffer);
+            }
+            finally
+            {
+                stream.Position = originalPosition;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// バイト配列から文字コードを判定します。
+        /// &lt;/summary&gt;
+        public static Encoding DetectEncoding(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return Encoding.UTF8; // データが無い場合の既定値
+            }
+
+            // --- 1. BOM 判定 ---
+            var bomEncoding = DetectByBom(bytes);
+            if (bomEncoding != null)
+            {
+                return bomEncoding;
+            }
+
+            // --- 2. BOM無し: バイトパターンによるヒューリスティック判定 ---
+            if (IsValidUtf8(bytes))
+            {
+                // 有効なUTF-8バイト列（かつ日本語特有のマルチバイトパターンが
+                // Shift-JIS/EUC-JPとして偶然成立する可能性は低いため信頼度が高い）
+                return new UTF8Encoding(false);
+            }
+
+            if (IsValidEucJp(bytes))
+            {
+                return Encoding.GetEncoding("euc-jp");
+            }
+
+            if (IsValidShiftJis(bytes))
+            {
+                return Encoding.GetEncoding("shift_jis"); // CP932
+            }
+
+            // どれにも当てはまらない場合はフォールバック
+            // 日本語業務システムでは Shift-JIS が既定であることが多い
+            return Encoding.GetEncoding("shift_jis");
+        }
+
+        private static Encoding DetectByBom(byte[] bytes)
+        {
+            if (bytes.Length &gt;= 4 &amp;&amp;
+                bytes[0] == 0x00 &amp;&amp; bytes[1] == 0x00 &amp;&amp; bytes[2] == 0xFE &amp;&amp; bytes[3] == 0xFF)
+            {
+                return new UTF32Encoding(true, true); // UTF-32 BE
+            }
+            if (bytes.Length &gt;= 4 &amp;&amp;
+                bytes[0] == 0xFF &amp;&amp; bytes[1] == 0xFE &amp;&amp; bytes[2] == 0x00 &amp;&amp; bytes[3] == 0x00)
+            {
+                return new UTF32Encoding(false, true); // UTF-32 LE
+            }
+            if (bytes.Length &gt;= 3 &amp;&amp;
+                bytes[0] == 0xEF &amp;&amp; bytes[1] == 0xBB &amp;&amp; bytes[2] == 0xBF)
+            {
+                return new UTF8Encoding(true); // UTF-8 with BOM
+            }
+            if (bytes.Length &gt;= 2 &amp;&amp;
+                bytes[0] == 0xFE &amp;&amp; bytes[1] == 0xFF)
+            {
+                return new UnicodeEncoding(true, true); // UTF-16 BE
+            }
+            if (bytes.Length &gt;= 2 &amp;&amp;
+                bytes[0] == 0xFF &amp;&amp; bytes[1] == 0xFE)
+            {
+                return new UnicodeEncoding(false, true); // UTF-16 LE
+            }
+            return null;
+        }
+
+        /// &lt;summary&gt;
+        /// バイト列が正しいUTF-8として解釈可能かどうかを厳密にチェックします。
+        /// &lt;/summary&gt;
+        private static bool IsValidUtf8(byte[] bytes)
+        {
+            int i = 0;
+            bool hasMultiByte = false;
+
+            while (i &lt; bytes.Length)
+            {
+                byte b = bytes[i];
+
+                if (b &lt;= 0x7F)
+                {
+                    i += 1;
+                }
+                else if ((b &amp; 0xE0) == 0xC0) // 110xxxxx : 2バイト文字
+                {
+                    if (!HasContinuationBytes(bytes, i, 1)) return false;
+                    hasMultiByte = true;
+                    i += 2;
+                }
+                else if ((b &amp; 0xF0) == 0xE0) // 1110xxxx : 3バイト文字
+                {
+                    if (!HasContinuationBytes(bytes, i, 2)) return false;
+                    hasMultiByte = true;
+                    i += 3;
+                }
+                else if ((b &amp; 0xF8) == 0xF0) // 11110xxx : 4バイト文字
+                {
+                    if (!HasContinuationBytes(bytes, i, 3)) return false;
+                    hasMultiByte = true;
+                    i += 4;
+                }
+                else
+                {
+                    return false; // 不正な先頭バイト
+                }
+            }
+
+            // ASCIIのみの場合、UTF-8/Shift-JIS/EUC-JP のいずれとしても正当なため、
+            // 誤検知を避けるためここでは「多バイト文字を含む場合のみ」UTF-8と積極判定する。
+            // 呼び出し側の判定順序（UTF-8→EUC-JP→Shift-JIS）と組み合わせて使用してください。
+            return hasMultiByte || IsAsciiOnly(bytes);
+        }
+
+        private static bool HasContinuationBytes(byte[] bytes, int start, int continuationCount)
+        {
+            if (start + continuationCount &gt;= bytes.Length) return false;
+            for (int j = 1; j &lt;= continuationCount; j++)
+            {
+                if ((bytes[start + j] &amp; 0xC0) != 0x80) return false; // 10xxxxxx でなければ不正
+            }
+            return true;
+        }
+
+        private static bool IsAsciiOnly(byte[] bytes)
+        {
+            foreach (var b in bytes)
+            {
+                if (b &gt; 0x7F) return false;
+            }
+            return true;
+        }
+
+        /// &lt;summary&gt;
+        /// Shift-JIS(CP932)として妥当なバイト列かどうかをヒューリスティックにチェックします。
+        /// &lt;/summary&gt;
+        private static bool IsValidShiftJis(byte[] bytes)
+        {
+            int i = 0;
+            while (i &lt; bytes.Length)
+            {
+                byte b = bytes[i];
+
+                if (b &lt;= 0x7F || b == 0xA5 || b == 0x80 || (b &gt;= 0xA1 &amp;&amp; b &lt;= 0xDF))
+                {
+                    // ASCII、半角カナ等の1バイト文字
+                    i += 1;
+                }
+                else if ((b &gt;= 0x81 &amp;&amp; b &lt;= 0x9F) || (b &gt;= 0xE0 &amp;&amp; b &lt;= 0xFC))
+                {
+                    // 2バイト文字の先頭バイト
+                    if (i + 1 &gt;= bytes.Length) return false;
+                    byte b2 = bytes[i + 1];
+                    bool validSecondByte =
+                        (b2 &gt;= 0x40 &amp;&amp; b2 &lt;= 0x7E) || (b2 &gt;= 0x80 &amp;&amp; b2 &lt;= 0xFC);
+                    if (!validSecondByte) return false;
+                    i += 2;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// &lt;summary&gt;
+        /// EUC-JPとして妥当なバイト列かどうかをヒューリスティックにチェックします。
+        /// &lt;/summary&gt;
+        private static bool IsValidEucJp(byte[] bytes)
+        {
+            int i = 0;
+            bool hasMultiByte = false;
+
+            while (i &lt; bytes.Length)
+            {
+                byte b = bytes[i];
+
+                if (b &lt;= 0x7F)
+                {
+                    i += 1;
+                }
+                else if (b == 0x8E) // 半角カナ (SS2)
+                {
+                    if (i + 1 &gt;= bytes.Length) return false;
+                    byte b2 = bytes[i + 1];
+                    if (b2 &lt; 0xA1 || b2 &gt; 0xDF) return false;
+                    hasMultiByte = true;
+                    i += 2;
+                }
+                else if (b == 0x8F) // JIS X 0212 (SS3)
+                {
+                    if (i + 2 &gt;= bytes.Length) return false;
+                    byte b2 = bytes[i + 1];
+                    byte b3 = bytes[i + 2];
+                    if (b2 &lt; 0xA1 || b2 &gt; 0xFE || b3 &lt; 0xA1 || b3 &gt; 0xFE) return false;
+                    hasMultiByte = true;
+                    i += 3;
+                }
+                else if (b &gt;= 0xA1 &amp;&amp; b &lt;= 0xFE) // 通常の2バイト文字
+                {
+                    if (i + 1 &gt;= bytes.Length) return false;
+                    byte b2 = bytes[i + 1];
+                    if (b2 &lt; 0xA1 || b2 &gt; 0xFE) return false;
+                    hasMultiByte = true;
+                    i += 2;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return hasMultiByte; // ASCIIのみの場合はUTF-8判定に譲る
+        }
+    }
+}</code></pre></details>
+    <p>既存コードベースの他のユーティリティクラスと同じ名前空間規則に合わせているのだと思いますが、他に合わせるべき命名規則（クラス名のプレフィックスなど）があれば教えてください。</p>
+  </div></div>
+</section>
+
+<!-- 4 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#04</div><div class="body">
+    <p>Ude.NetStandardは商用利用しても大丈夫ですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p class="tool">Web検索 ・ Ude.NetStandard のライセンスを確認</p>
+    <p>はい、商用利用は可能ですが、ライセンス形態が少し特殊なので整理します。</p>
+    <h4>ライセンス</h4>
+    <p><code>Ude.NetStandard</code> は <code>errepi/ude</code>（Mozilla Universal Charset Detectorの移植版）をベースにしており、MPL 1.1、またはGPL v2以降、あるいはLGPL v2.1以降のいずれかで利用できるトリプルライセンスです。</p>
+    <h4>商用利用について</h4>
+    <p>MPL・GPL・LGPLはいずれも商用利用OKです。ただしコピーレフト系なので注意点があります。</p>
+    <ul>
+      <li><strong>MPL 1.1を選択した場合</strong>：ライブラリのソースコードを改変した場合、改変部分はMPLのまま公開する必要があります（ファイル単位の弱いコピーレフト）。改変せずバイナリ参照するだけなら、自社システム全体をMPLにする必要はありません。</li>
+      <li><strong>GPL/LGPLを選択した場合</strong>：GPLは強いコピーレフトなので、リンクする自社コード全体に影響する可能性があります。LGPLなら、動的リンク（NuGetパッケージとして参照するだけ）であれば自社コードへの影響は限定的です。</li>
+    </ul>
+    <h4>実務上の結論</h4>
+    <ul>
+      <li>NuGetパッケージとして参照し、ソースコードを改変せずに使うだけなら、社内の年末調整システムに組み込んでも実質的な問題は生じにくいです（ソースを配布するわけではないため）。</li>
+      <li>外部に配布・販売する場合や、コンプライアンス上ライセンス条件を厳密に確認する必要がある場合は、法務部門やライセンス管理担当への確認をお勧めします。</li>
+    </ul>
+    <p>代替として <code>UTF.Unknown</code>（<code>CharsetDetector/UTF-unknown</code>）という後継的なライブラリもあります。採用する場合はそちらのLICENSEファイルも確認してください。社内ポリシー上OSSの導入が難しいなら、外部依存なしの <code>EncodingDetector</code> をそのまま使う方が手軽かもしれません。</p>
+  </div></div>
+</section>
+
+<!-- 5 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#05</div><div class="body">
+    <p>年末調整システムはazureで公開するサービスで、元のコードは改修しない予定です。どちらを選ぶのが無難ですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>今回の状況（Azure上で公開する自社サービス、ライブラリのソース改変なし）を踏まえると、ライセンスリスクの観点では <strong>Ude.NetStandardを使っても問題は小さい</strong> と考えられます。</p>
+    <h4>ライセンスリスクが低い理由</h4>
+    <ul>
+      <li>MPL・GPL・LGPLはいずれも「配布（distribution）」時に義務が発生するライセンスです。</li>
+      <li>Azure上でサービスとして稼働させ、Webアプリとして提供する形態は、一般的にソフトウェアの配布に該当しません。</li>
+      <li>例外はAGPL（ネットワーク条項を持つ）ですが、Ude.NetStandardはMPL/GPL/LGPLの三択でAGPLではありません。</li>
+      <li>ソースコードを改変しないので、MPL特有の改変ファイル公開義務も発生しません。</li>
+    </ul>
+    <h4>どちらを選ぶか</h4>
+    <p>ライセンスリスクがほぼ同等なら、判断基準は精度と保守性に移ります。</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th>Ude.NetStandard</th><th>自作EncodingDetector</th></tr></thead>
+      <tbody>
+        <tr><td>判定精度</td><td>高い（Mozilla発の実績あるアルゴリズム、28種の文字コードに対応）</td><td>中程度（ヒューリスティック、限定的な文字コードのみ）</td></tr>
+        <tr><td>依存関係</td><td>外部NuGetパッケージが増える</td><td>追加依存なし</td></tr>
+        <tr><td>保守性</td><td>ライブラリ側で継続的に検証済み</td><td>自社でロジックを保守する必要あり</td></tr>
+        <tr><td>最終更新</td><td>2019年頃で更新停止気味（後継のUTF.Unknownの方が活発）</td><td>自社管理下</td></tr>
+      </tbody>
+    </table></div>
+    <h4>結論（無難な選択）</h4>
+    <ul>
+      <li>社内のOSS利用ポリシーでMPL/GPL/LGPL系ライブラリの導入が許容されているなら、<code>Ude.NetStandard</code>（または <code>UTF.Unknown</code>）を採用して精度を優先するのが無難です。</li>
+      <li>OSSライセンスの審査プロセスが重い、または依存を増やしたくないなら、自作 <code>EncodingDetector</code> のまま運用し、カバーできていない文字コードが出たら個別対応します。</li>
+    </ul>
+    <p>私は法律の専門家ではないため、一般的な整理です。最終判断は、御社のOSS利用ポリシーや法務・コンプライアンス部門に確認してください。</p>
+  </div></div>
+</section>
+
+<!-- 6 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#06</div><div class="body">
+    <p>UTF.Unknownの使い方を教えてください。</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p class="tool">Webページ取得 ・ github.com/CharsetDetector/UTF-unknown</p>
+    <p>UTF.Unknownの現在のバージョン（v2.6）は <code>.NET 6</code> / <code>.NET 8</code> / <code>.NET Standard 2.0</code> をターゲットにしています。.NET Standard 2.0は.NET Framework 4.6.1以降と互換性があるため、4.6.1以上であれば参照できます。</p>
+    <h4>インストール</h4>
+<pre><code>Install-Package UTF.Unknown</code></pre>
+    <h4>基本的な使い方</h4>
+<pre><code>using UtfUnknown;
+
+// ストリームから判定
+DetectionResult result = CharsetDetector.DetectFromStream(stream);
+
+DetectionDetail best = result.Detected;
+
+if (best != null)
+{
+    string encodingName = best.EncodingName;      // 例: "SHIFT_JIS"
+    Encoding encoding = best.Encoding;             // System.Text.Encoding（nullの場合あり）
+    float confidence = best.Confidence;            // 0.0〜1.0の信頼度
+}</code></pre>
+    <p>ファイルパスから直接判定することもできます。</p>
+<pre><code>DetectionResult result = CharsetDetector.DetectFromFile("path/to/file.csv");</code></pre>
+    <p>非同期版もあります。</p>
+<pre><code>DetectionResult result = await CharsetDetector.DetectFromFileAsync("path/to/file.csv", cancellationToken);
+result = await CharsetDetector.DetectFromStreamAsync(stream, cancellationToken);</code></pre>
+    <h4>自作 <code>EncodingDetector</code> と置き換える場合のイメージ</h4>
+<pre><code>using System.IO;
+using System.Text;
+using UtfUnknown;
+
+namespace CommonUtils.Utility
+{
+    public static class EncodingDetector
+    {
+        public static Encoding DetectEncoding(Stream stream)
+        {
+            long originalPosition = stream.Position;
+            stream.Position = 0;
+
+            try
+            {
+                DetectionResult result = CharsetDetector.DetectFromStream(stream);
+                DetectionDetail best = result?.Detected;
+
+                if (best?.Encoding != null &amp;&amp; best.Confidence &gt;= 0.5f)
+                {
+                    return best.Encoding;
+                }
+
+                // 信頼度が低い、または判定失敗時のフォールバック
+                return Encoding.GetEncoding("shift_jis");
+            }
+            finally
+            {
+                stream.Position = originalPosition;
+            }
+        }
+    }
+}</code></pre>
+    <h4>実務上のポイント</h4>
+    <ul>
+      <li><strong><code>Confidence</code>（信頼度）を必ずチェックする</strong>。日本語の短いテキストや空データでは信頼度が低く出ることがあるため、閾値（例: 0.5〜0.7）を設けてフォールバック処理を入れておくと安全です。</li>
+      <li><strong><code>Encoding</code> プロパティがnullの場合がある</strong>。一部のエンコーディングは.NETの標準 <code>Encoding</code> として取得できません。日本語の判定（Shift-JIS, EUC-JP, ISO-2022-JP, UTF-8）ではほぼ発生しません。</li>
+      <li><strong>ストリームのPosition管理</strong>。<code>DetectFromStream</code> はストリームを内部で読み進めるため、判定後は <code>Position = 0</code> に戻してください。</li>
+      <li><strong>依存関係</strong>。追加のNuGet依存はなく、DLLサイズも軽量です。</li>
+    </ul>
+    <p>作成済みの自作 <code>EncodingDetector</code> をこのライブラリベースに置き換える形でファイルを更新しましょうか？</p>
+  </div></div>
+</section>
+
+<!-- 7 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#07</div><div class="body">
+    <p>関数ヘッダをリファクタリングしてください</p>
+<pre><code>/// &lt;summary&gt;
+/// 文字コードを判定します。
+/// UTF.UnknownはUde.NetStandardの後継版
+/// ライセンス（MPL/GPL/LGPL由来）はSaaS形態で未改変のまま利用する今回のケースでは、GPL/LGPL/MPLいずれを選んでもほぼリスクなく利用できる
+/// &lt;/summary&gt;
+/// &lt;param name="stream"&gt;&lt;/param&gt;
+/// &lt;returns&gt;&lt;/returns&gt;</code></pre>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>ライセンスの経緯や採用判断の話は関数の振る舞いの説明ではないため、<code>&lt;summary&gt;</code> に混ぜるとメソッドの目的が読み取りにくくなります。ライセンス根拠はクラスレベルのコメント（採用理由の記録）に分離し、<code>&lt;summary&gt;</code> は「このメソッドが何をするか」に絞るのがよいと思います。</p>
+<pre><code>namespace CommonUtils.Utility
+{
+    /// &lt;summary&gt;
+    /// UTF.Unknown（Mozilla Universal Charset Detector の .NET 移植版、Ude.NetStandard の後継）を
+    /// 利用した文字コード判定ユーティリティ。
+    /// ライセンスは MPL/GPL/LGPL のトリプルライセンス。本システムはAzure上のSaaSとして提供し、
+    /// ライブラリを未改変のまま利用するため、いずれのライセンスを選択してもリスクは小さいと判断し採用。
+    /// &lt;/summary&gt;
+    public static class EncodingDetector
+    {
+        /// &lt;summary&gt;
+        /// ストリームの内容から文字コードを判定します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="stream"&gt;判定対象のストリーム（Seek可能である必要があります）&lt;/param&gt;
+        /// &lt;returns&gt;
+        /// 判定された文字コードの &lt;see cref="Encoding"/&gt;。
+        /// 判定に失敗した場合、または信頼度が低い場合は既定値（Shift-JIS）を返します。
+        /// &lt;/returns&gt;
+        public static Encoding DetectEncoding(Stream stream)
+        {
+            // ...
+        }
+    }
+}</code></pre>
+    <h4>変更点</h4>
+    <ul>
+      <li><code>&lt;summary&gt;</code> はメソッドの動作（何を判定し、何を返すか）のみに絞りました。</li>
+      <li>UTF.Unknown採用の背景・ライセンス根拠は、メソッド単位ではなくクラス単位のコメントに移動しました。</li>
+      <li><code>&lt;returns&gt;</code> にフォールバック時の挙動を明記しました。</li>
+      <li><code>&lt;param&gt;</code> は空にせず、Seek可能である制約を明記しました。</li>
+    </ul>
+    <p>実装本体も含めて全体をリファクタリングしますか？現在のファイルは自作ヒューリスティック版のままです。</p>
+  </div></div>
+</section>
+
+<!-- 8 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#08</div><div class="body">
+    <p>以下のコミットログをリファクタリングしてください</p>
+<pre><code>dev-1466 ヒントメッセージのメンテナンス機能：RV指摘事項
+- UTF8 BOM無しをご判定するため、信頼性の高いライブラリを使用</code></pre>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>元のログには誤字（「ご判定」→「誤判定」）と思われる箇所があったため修正し、保存されている規約（【原因】/【対応】区切り、バッククォートで識別子を囲む、「・」箇条書き）に沿って整形しました。</p>
+<pre><code>dev-1466 ヒントメッセージのメンテナンス機能：RV指摘事項
+
+【原因】
+・独自実装の判定ロジックでは、UTF-8 BOM無しのファイルを誤判定するケースがあった
+
+【対応】
+・信頼性の高い文字コード判定ライブラリ `UTF.Unknown` を使用するよう修正</code></pre>
+    <p>「ご判定」は「誤判定」の誤字と判断して修正しました。意図と異なる場合は教えてください。修正対象のファイル名やクラス名（例: <code>EncodingDetector</code>）がわかれば、【対応】の行に併記することもできます。</p>
+  </div></div>
+</section>
+
+<!-- ============ GROUP 2 ============ -->
+<h2 class="group" id="g2">アイコンの作成</h2>
+
+<!-- 9 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#09</div><div class="body">
+    <p>添付したアイコンをヒントメッセージのメンテナンスという感じに修正可能ですか？</p>
+    <p class="attach">添付画像 ・ icon1.png（96×96）</p>
+    <div class="figs"><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAACXBIWXMAAAsSAAALEgHS3X78AAAaoElEQVR4nM1dC3AdV3n+9t4r3ZeelmzLciTLdmxn4jxsk8CkJcQJCQQowTC8AgyTNE1CmdLw6DBlYBhehZaUMqGBNmmHOKVDkikMJgnUbaBxGogbSLCT2I7txLJsGdvyI5Yt6UqytOd0ztk977P3odxr8o/Xd/fs2bNnv/8//+ucXQWokt7ztZfXgGIDgKsArKcUoJSaG6n2GCB2GeENqnJeRiDvQ6h7jbWRuA1xvmx94i8nlIAS1gyJ66nnJFp9fh9KonuQ6JkooVsopU9QSjfNvPjx7dUgW5EBG77y0k0BcAcCMAawf/HNxW/ShhhA8yHMh3UZoMoTriGce265DXTSvlMf1nmS2IZ+D6Ov1nPE12wnlN5F9n5iowNqNQy44Yu7BxAE9wVBsF6UNTel0FJMo6WQRlMm4J0v5lOyYyR+GKJ1WEgNIf6yxH3nmkgymYTabdltyPtX2FftsDYjgam1zXBmNioLSbQ/E4LOEjWaKN0CipvpvjuGHJABpJ0SAO/4/K4NCPCfoPQCJugM8MU9OfQtyqGtJYN8NoWmTEoyQW0UFLF0IJaUaKDEZfE+IFWL3I+HlyrT2pDXxnVkm2rfbDdh33uddr+k6+TId9tBKgCCAEilEGTSCJoyvCxScYRdNUApvQmd1+/Bqc27K46At33uhZsCJvkIkM4EWLQgjwXdWX6uLZ9GWz6FYlaAT7VOKf0uVFQkBQo4Q79T9dC0TLka4nZ99zqSUK5UA2Kp9LdF9GuIvy3i9DPaHy/N4NjJSQyPTODQyDi/PpyeAZmajtRrxM6bMfipjYkMeOtnn98QBPgJ42ghl8ZAXwvy+TRasmmc19XEQZcSDapJk9khUUaEJBn6UjHIZgg0hnHAYV0nQIRp0G1ADP0O6oBJPNfodZTQUJOpTNVAO+fpA6s/UZrB0y8cx7FXSgiZSpqcAkIimPBu7P/0JocB131mG9P524Ig6Cjk01ixrA2ZTAqLOpvQ3Zpx1JQaikpFwAYE+gOao8SRUI+0STCENwTLK7HagW/EIAIFxGKQfW9CPSNIHxmRABBY7YsN0EZZVLZ36DS27T7B7QNKkwAJ2UOMAliLoc9wmyCRJYTeFwToSKeBvt4iV229nRl0FtPRA8Q6UPuxdLupq21GGKNAHBMYo4LY0gpbFegSqpcpT4boetsDZgQQDAape5hMYo0RUKN9l/nm/WmEJS9b3teGdAr4zY7jQD4HlCZY5Q4A9wG4GsIIX/OXz9wE0E+yy3t7Cmhva0ZPZzM6ixnD+OgPx70GW+/CBJzX0UdB3HGfjTDA8UqiBiCh0mgn2RUiBEKOIlslufUpUYafENGGew+iM5gk35/9thWbucMy8spUJLWzs9wwo+MtBzD62PYUl35K7mDGqVjIoLsrh3xzKpb8COgw3qJOqQ4RSjW1QtV5ZoAMw0zj6yAfgFjgkyTV4NuHxnwipNmWepgMhakCVR+0+wKOEBAHdNMmUOOZPAIEivP72tDdmQOam4F0JpZK3MFtwJs+vnUN0/3MGiwf6EBHRxYrF+fRnNHscxBoOkfon9h1dFSR7lK6nTE8DGnITWPrMsEylIiYDZjRqXONo9dtOyBGqtVHAo8waHZMRtru/Uw1RCVkpckZ/PfWYWBmFiiVBIhrM4TSDQGlaG7OoK21CS25FNdbPOJkXAks4KHAlvaAav481cA3ANYNNwxmcCC9QFlqCKbKU0wOjGuI9uAUAWKFpXlralN2TdgDS8UYfbevt/qISE1D9jXuJ4BcLoOe7gKOHi9FsQOXILohQwm9ilUpFjO848zHj3RhjL+Nvc0E7SaG5GudhdZBH8DSxvhAd8rUSOqZl8VATwFLFxUxOR1i3+Fx7Bw8g9LUrNcrcdsS3o+/X+I6ac+cUeSOTt+9BPV05SMGME+HeUSgV2UIIeuZkBcKGd5IvjmIpV+jwEHfkH7dK7LVESzjrKTefSC707bn01FswpKefAx6AR0tTUY3163qwPuuBmfCC4On8cK+0zEzTHtiOg6+fliSTwItrhFMsUeHrbZi26SJbld7LtrNZICZaba3PkNDAhqAW2rWQDoVIIwBCNS1Finp102Do3KMkaKSbBJcPYAjsSrRVFM7A3xhDkt6ChjoyTuAM2KSn8+aGZXVy9r49sFr+zgTnn95FM+9PIrS5KwC3Qm8dGMeS7PWP+hST6ygMclDslR3Lht7/UFKgsdGAIIgUEkn1oKToHAZIH6MmECPjnVjDFvCLaMdG72OYgb9DPCFeb75AJ86G2LwcAmDhyew7/cTOHxiEn/35xc59QRdvLydbx9+6xK8NDyG7S+NYvveUzgxOi09N9PjspigG2DDvbXUjcNQqlS5DZYCDBkeZQYBisUmXsbczcASfUcDmW0olWQYRsiRIqTd9Iwo2ooZLFmQR/+CCPT2ohtxM9p/pIRdQ+MYPMIAn3K8pmppRV8r3953TR+GR0p46vnj+N2eUzg+OuWJV/weG7WeQY2cwPWIPDLLKa1GbIZJfBBEks9+aZysipBPGAraUyv1Y3tDui6PzrcXMuifn0U/A31hLhnwoyUMHZnkgDPwHRcQMFzBuVDfwgI+cN0Svh0cmcCvth/Hsy+exLFT08n2QowAokXtMAE35yV86Me4xkWZCHDFPUL0mtTLA13qqMMMpVraC2n0Lcihf36OS3kS4ENHJzF0tIT9RycV4EZ8oKkx2IHXHDmgUf/CIj70VrYN4PjoNGfEE8+OYP/hcVfanU30z1NPweghTQUhtgHCFuhkM8B+Xl3ys00p9DHpnp/FisWFZMBHJmPQo83xPuJgSBruxPwOrQsDdJrfkcX1V/Ty7fipKWx5dgQPPbZfjkDim6nzBW4Gjo7yljYhQ3jLAW+ABWSVPSBVnGtKccmO1EoOCzqanXqMDjDAR6YU4FCGDNAykTDzRLpBk8bcACK5f/Wg+Z05vO/aJXjgv/ZrnpBmtGPdT4zRETPEBssBUI6AOEZkeosFaKHygiQTtFHA1MnK8woc8IWJgE8ZoOuzXQbIMB8IulQB5sN6f+s/Anyku6jE6LstLMobqqB/5KkMy1UHUgWpDGBgXxoXfPiaHqedkVNnsfvQBAeeqReZJ5IjrXxUDOtYbIu6sljeW8Ty3gK+//MDsY0yASj3fPUi4ggGTXZHPRGwgzr0EWAHEowR4FrJe52g5/aNYc+hCS7lU9OhSkvodkEABSX1IlYw0tLxeeb3M7CXLSpg9dJWI8AKPTn78g9aRwYQxWziSDo1VJBIEircyvcvE08cywBMGuGgfDy2bd8YVy/6PXQvyAjKhM63pLyztQnLFuWxbFEk5ew4iZRfbjLAkYwGkJEttWMQLZcko2SFfnL3xAjgkXD8gAFVjEi8MCZCPIGQEf1aEh4bbZbDYRK+rDeP3q6c024SGZPyVlDUaLJ1PrHTJpo6NMIvp29G0BQxQETCIpDgNti50CXZESMfAcPg5prTkYT3Rsmz3q6s0061RJyIVM3LNppsF9PNAal1UZY0ViAajQARB3AVFEYjQvvPS3zWKyT67Tgt64kAj1RLwXfp3BjgBEOKIY0m20b6YhFHG3gZYMcGNDLCwrgEItSGGAVOCwYghFLjPt+8bZVTr16k/H7d8zg3DDCWnzjzB8pNJdUYX8M9pVXGAR6icjGs1W4D6OTpsx6Jg1R1jSYxSyY8HrWv5YFsgTfcyOQ+Ki9IjASuikzofdlQPgEfAvWWQQb28LFJHDw2iT0Hx3jWcmIq1II0yNyLWKTbaJKjXZd+uLNkkrx9snM40guKA7DY/ycOK/1E48WnXlVXLdhnIrAPcbDH+T4D2wj7NQ/DjkJFervhDNCXxluZUeEMOO6gQT41YXhBkCoojI1xOfWDmFGhZvYrAcHAZkAPH5/E3uFxvl/iYKsUhRMVAxJk5WW4QDSa7FyPu3xeA9Xpj1MAXXIylIYyGYf4QZkF9l1mMIBYkw7aBRHYUzgUg81AL3E1ooVpMg1h+dnwlFkRMLT9c2eELW9Ik35as/RDHwFmBBzG3lAl8rle3/6PQQ725JRITWgZTz0RB13SRX9MsLvam9Hd3owLlrTyFPE//2TQZIi2BqfRZKodfbVFJdVTmZQbKmxBWM2ccLxiLtRUEIDdB8e0KBgqHeFhgEgj9C0ocKD7F+bR3Z6VoNv03R/vM7OqMu3beBaExutTlsNS0fW0R4CRt4kDMU0lmJPyQSIvqCcOMADXO0SBVf0tUqrZpA0Dm4FeLdmpXz3J12iichToOSlL/SX2I3DB14iroEBTQaYX5F4gSL3Go8pY9pLN9Xa1NXOAL9BAf7XkLEHU1FGjiYjl8ZY3pKHvgSpJ9+tVKNhqLJWGDky14psP1hkg6oor7v7kxU69epFkAFyD2HgG2NOOtaYdPERlKoLwYWLMB3jW4jrNi0j4HFGoxwZycic4h5GwGYmrk071hEL7GqqScUzTSxWkL4sok5CLVBBxyhtF8h1g6tqDc3FvOxmoyHf/atRPhF0GMqyO3VHnIqcg6hRU3XNhDA2303hLxqladyLW+iCTfDmfMobXOswI4IU7GsZS7Zd7RdwG1GEE7Bg8zX/ZgqiRU1O8D2w9JyP2VsnIySljFYXJgHMTB4TOQitU1vtJDJBlMhImmk+rrVx2LrKaIOLtdtGkecXQkQme15mYnMUQW2zFlxhO8GO2sX0ZCVuLeqG5mM4kjK4GzlkgpvqnFTr15pIazoghJeYBRH6n1lwQ69AX/3Undu4/4/RDgqr9GmVWcCb6pOeI/KmIxqbBBYVO1rXMjcvZB6qXxSMA2qR8AFTt2ciV1JoNYKrDuIcei2lBGbWZISrq0g4LaCNpZ6mkGoitpn521wkcPl7Cb3edtIQi+r18dTd65+fx+tXzsXhBwcXEe9MK0m8DY6gg5oayYAPu0sQkEm4otRp3GKCBDh1s6Kon2r9keYdkFiu+9PwOWX/jz/YbmVLUYAPGSjN49MlDeOR/D2HPgdPeF6x19cZeshbHqwbaPUB6DG+5CRgHfHWY4VOR8TtajIgIxCrooGhChuqwY2lvEcV8RjbOjlvy6lXXZYvN4+WL4/pV0Pcf2ScZWK0byoB/YPMQfrh5EGcmZqxsprAx/oyrmHXbtW/URM25XS2G1z6mkQqimgriAY/n3TCnOW0dqWj8O59a69SrF7nSWn4+gC2q/dK9z2Fs/KyWxweu7H4aaztewLrOHVjRst+5jtGeMwN45uRq/PbkhXj86OXigZ16fmx99Txlaj4glnwSjwTNtSw3CIxAzCcYdSa+AkNbNJC0KoJJ/bd+sAsPPzksge/JHsP7z/sp3t7zP2jJTFTs2Kq2Ib59eOnPMDZTxE+Hr8K/D74dh0vz/aCWY4BP/Wj1MsYLczXYAEJtI+xUqSupt+5hqCL9vgz82762FXuGzsiX6m4ZeADvP+/hqoD3UWvTBD6y7Od4V98T+MHg2/BPe96rACz3zOXUkTaaIi8oULntsAYvSOTJE25TV1KfmdG8IM27YuDf+tWt2B2D35Mdwd9e/PVENVMrMUZ8fNWPcE3PM7jj6U/j98Zo8CBQjgFacSr6WhSRgRWpsMnr5ZetYoPc4LRQGCq1p3/xit2XgX/LV7Zi19BpHp0vLwzi/ss/WTX4qa41SPeud8p9dEH7EH509V9zFWUabi1eIQnlRjDHkzlIiTPyuwlhtNFQ+7CdtgmKPtMVb+rrUA0jGn+qTG4hlQz55v078eLQKD8+v2UQ31v3+apUDgO++KH9KLx3G/LvfBzFm0+hadVNTj2bWptK2HjlV7GqfcgLchL4Po/NMMIQ2VCZj3bqKwZQZYRFtStv/4UZE+ixieazq0gX8tdZ1Ct+LW9HqSDISZmfPH4wUju5Y/jeui9UB37rAPI3PI6guUOWsf3s+vsQHt4CMub9xJskxoT7r/wq3v2Lr5vqqJxB9KQyUuJzI/rH6aJhTrzqSF5P1KgxVFecogi1fWJ9DM+U5FgFil9x31DVkX656BclCPkmvsIS1bvzkm+gtUpjmx7YYIBvn6uGGBPuvuLbHtXj2YjtMkc2NxW9Jak+1SjAiz5RIwCkyujGRGh8PtSvUfXNfRjtEO1Y/lJo54n8OiKx76EzMowZGFLcuvRBrGytj8HF2VGnKIku6DiAv7jwx9qrqcQI5pwEossAqgyqodfVKNDBlAywpVQY8VAd6+ciQ61Ghv4pGXUMySDFHHMkUuOe0bme3AhuHHg0ASI/ze7ZCOoBmpXN7t/klJejj67YjMXF48mqB/Gafz26jd1pZYQd1WAzghhBms9jWrOyE2tXsW0eFs7LmRIdakBq+yGJJDiM64RxmT1CfCpRMPPGJY9UrXp0oCcfvhpU0/Vsn5d5GFOO2ppKnAn6R5t01Si8RAWfFgcIzybKCdnLUpKZSow54ej3ns+93qnnI+Y2smAp6Ra/2XnCOMEM7D8+uNtNxsVG+IbFWzx3qUzk5HZM/HApd0Hp9Cg/niu9Z+mT+JttH6mIm3qoeEqSxjvyDRkxI1YuDyHnA+bmerYWmnDZhV2J5y/3nLvrh7uifuqeEfve3cLf8CDp1RDzel4tsVHw5sXP4LFDr0Pc0eQWtVOOCpJDP/RvgohuGEPzXCPINvhCTV42b2dd78ZigyTvqBK9Yf7uCFz57QJ9E66RzoV4XRA0FeR85SOBKKXm9GWDcxH652CgjYTLu3c5dSsRUzkc6GwHUi1LELQO8LiA/TKafOTqOY2KNyx4EWKK1yVfIRXzAZoK0uYDymkhfWGWaKyRpBaBmcEZSw3UQky6WdTbCLqw82CC5vEl7uSyFDUfgDjphfgdMecavUnxgkbjsZf9EiNNHwW1Uqp7TUP7SZ1kZvk+ZgTL5IyY04CfiL0yruHpaGultWcu4LVHei5GJyXd1oQMjGi3ogoiSTeoPykG6C921H5jptvH74mejKmiarOg1ZKWrEnAxSyUE7jyi0+6Xi/DATEnrJr03q1uRIzFUb7Q/rVB4q3TykRjBsxRBdmLcxu9RtNYyfAaVj3J8zBOAaeMnB4g0fKUahfcivRA8g3rS+7iqIh2nurH6s6DTvkfgna+0ledG2oGYlEOVfzJDTuzaW+KAUQLiEjDV0oTQt0UL6XYevQCp+4firYeXSVjLbWpt3kotYcIRUociDfAjcyjZ5OA6HWpWlfUONIfS30y/anXEAOeOrLKE/1aXeekJ+MM3R9JM6cyBhjxCGB1z5U21pc26rT54DqcOVtAW3PJueZcEuvD5iF9XZTVUQ/4iFRQVCbz9pQmz17Zk/LybcXGqyA5Gp2JDoqHXn6jU/9c07/suFbrk2dSRr1WaJDMBYnsov4JmnK0enmnzG8fPDKOA0fGy9R+9ZSs4Sju3XktPnD+r/5go4BJ/4N7r/ACnCT5Ik7QvKDa3NBvfOIyp+zckurn8Hg37t15Hf5q7U+r6oHIBSWlJbJ/9G0+PzD91KeqmiO4d8ebMTzW5YJMEw8kyUCsWgZ896FduGTFPFy5zv16YiPpjWuj+x08MuYdbXduexeu79+Gi7oqu6SVol+WKWXEsqWVaMfJPtz57DvLgJ+Ap8x5dnws2u1fx38K+eQP5yVR/6IWLFnUws+2tzZzBgm6ZOU8dLRE7wnr9epF331wJz77D0/z1vpaTuCX7/4y2iuoopbbE0CxqFJa+vTZAt784y/E0q9RGfBLk2cjfXo4GlkOA3K52hmQcHfvoU5v0kYRZ1Rr9E259pYmXLJSPdSbXld+tN325Sfxg0f38v2Luoax6R13lmVC82Vfcsp8xCbuk9YHMfA3PPxp7Dh5XpnndR9+ijGAkWRA++0WA6pbr1/mHvUn7R5Les3RdunKeRgdO4u7H1AzY0wNbfqTvy/LhFdDXvArAC9y6VNTM9Gxw4CFK4BsK7LZGhnwqsnT2YRnqOpkfKq/9QT+7S3f4yOinsR0/kc3fwwHx+Z57+s50IoopqdngbPjwImXeXEauddF47GlC8hkkUlXiMAaSU7EWOaBfFWoqnt6uoCNu67iAeVF3YeQS884l9RCp6fz+M7263HrY7fwffe+Zfqp+dDczQ/PAqVX+HGA9tuis10DQLELTU1p/i3puVNCJ3xUsWqVwFeo2996Ejeuegq3X/zLmtUSY+QDe67APc9fM2epl4cUmOF/R+wVYDTy1hgDmFO8noGPriXIpFNIpRo0Cjx99FMtwDsHfoql8O1Ln8Mf9+7l28XdfvX0wonz8OvDK/Hr36/Ez/df6r9HVfc3y5mLPztLIvCjEbCFxQFPcAZMRwulQs9XE+dMSf1yaC6jppZrVN1HBy/lm7dRb5OewholX5BcxDA9Js4/wXJBm/j+DNNLo9ob8HXYnFSgls00Nl+deHPecBDXeeomXZdIoq4XL7fQ0feeixLAl290Tp2ObEBEmyJRb7t1G4A1yLUCC1ZyG5CumxpyO1P7JU5BeSoLutWmt6q3sPz5CiOTST9nwMmXgGkeyW/H2Ma1wue8i/+N26kxYGwEtHVhtFCroiry36xm8jbjLUymqucjygHvoWp0fYLUy9NC+ieOC/CZx/ktGFn/tj+LjHEqzUcBmgucAfUyBw55++stLE91A95zoi7gx3MZM5OR9EefG96CsY38DzrrUdfN7O8ygIQdeOUAZwJlzKjmE4rVkLeP3sIq25uDCCde4jlRB/ARSz8HffSAAH80xpqT+hsh078bRXbdHgAfRDgDTJ0BmotAOsoNJX8/MYnKd6y2pmptqxo14zlZrWtbLfCMhOTPTotTN2Js4/+JA/OvYE7/bjeyaw8A2MCZwH3VFNBsZjD9asn2ROpAVTyoS/UA31ugFfvPOXIycSyWfBmF34yx+x/Uq6Rh0/S27ciuew7A9aA0x0cC81uZOmqq/k+OzJloObcwiSw1k3htwok6Sj6nqVHg9DAwcUJwZTSSfBN8lFXwbbcMxH/9X81eZJp5wo5vmfhboFn3K7c1kyM61VI1+r3MyXoAz1QM+/42UzEsycaEVfn54AY3knxvXjuZAYLabrkJoHfwOKEelPAc1VMdbYukOfj9lWk7Mrm7cOqejeVqVm9Z2/50DbcNwFXGqPBR3TFqBOjVtFvzfZm0s9TOJozdX3kyGcD/A4yrm4bJgiUTAAAAAElFTkSuQmCC" width="96" height="96" alt="元のアイコン"><figcaption>元のアイコン</figcaption></figure></div>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p class="tool">Pythonでアイコンを生成（Pillow）・ icon1_hint_maintenance.png</p>
+    <div class="figs"><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOmVmMWNlZjNiLTZjNmEtNDk4My05M2MyLTkyMDQyOTAzNGVkZgAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNoDYEni7qZ1/uMKEMi/+ad5wAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6MjFmN2UzZWItNzU0Yi00Y2NmLWI0MTUtMWMyYWQ4ZTc4YTg1bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaCIBn1CByMNjf/cN9oSjkToAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYILlZKVLZGsgorfVCiEI8IwVISnV17ZXkn0x0bVr3IrSPpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2hb6/DyqcTHt7znospM5VQHAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggIpZIhtx/j0TQX799nIdWbAr8MOEc5OyyNLb4zUGaUD1kbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTplZjFjZWYzYi02YzZhLTQ5ODMtOTNjMi05MjA0MjkwMzRlZGYvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDphMzY3MDk5Yi0zZDQ1LTQ5NzItYTY0My02NGFlNjM4NjRjOTJyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgguVkpUtkayCit9UKIQjwjBUhKdXXtleSfTHRtWvcitI+iY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIJbrPD7M3VA/SHvaLZQ00JgfEPEsIHasbK25BkT2oFCIomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIH7srsejFy8ggr4dbA0LV+SAvOH4L/4ksrhQQBKtlwC9dGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" width="96" height="96" alt="生成したアイコン"><figcaption>生成したアイコン</figcaption></figure></div>
+    <p>元のアイコンと同じ配色・構図（青いグラデーションの角丸背景＋右下バッジ）を踏襲しつつ、以下のように変更しました。</p>
+    <ul>
+      <li><strong>メイン部分</strong>：建物アイコン → 白い吹き出し（メッセージ）＋電球アイコン（「ヒント」を表現）</li>
+      <li><strong>右下バッジ</strong>：「i」アイコン → レンチ（「メンテナンス」を表現）、オレンジ色は維持</li>
+    </ul>
+    <p>サイズは元と同じ96×96pxです。色味や電球/レンチの太さ・位置などの微調整が必要であれば教えてください。</p>
+  </div></div>
+</section>
+
+<!-- 10 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#10</div><div class="body">
+    <p>とてもいいので、添付ファイルを参考にハイライトさせたバージョンも作成してください</p>
+    <p class="attach">添付画像 ・ icon1_.png（96×96、ハイライト状態の参考）</p>
+    <div class="figs"><figure><img src="data:image/png;base64,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" width="96" height="96" alt="参考画像"><figcaption>参考画像</figcaption></figure></div>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p class="tool">元画像と参考画像のピクセル差分を分析 → 通常版とハイライト版を生成</p>
+    <div class="figs"><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOmVmMWNlZjNiLTZjNmEtNDk4My05M2MyLTkyMDQyOTAzNGVkZgAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNoDYEni7qZ1/uMKEMi/+ad5wAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6MjFmN2UzZWItNzU0Yi00Y2NmLWI0MTUtMWMyYWQ4ZTc4YTg1bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaCIBn1CByMNjf/cN9oSjkToAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYILlZKVLZGsgorfVCiEI8IwVISnV17ZXkn0x0bVr3IrSPpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2hb6/DyqcTHt7znospM5VQHAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggIpZIhtx/j0TQX799nIdWbAr8MOEc5OyyNLb4zUGaUD1kbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTplZjFjZWYzYi02YzZhLTQ5ODMtOTNjMi05MjA0MjkwMzRlZGYvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDphMzY3MDk5Yi0zZDQ1LTQ5NzItYTY0My02NGFlNjM4NjRjOTJyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgguVkpUtkayCit9UKIQjwjBUhKdXXtleSfTHRtWvcitI+iY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIJbrPD7M3VA/SHvaLZQ00JgfEPEsIHasbK25BkT2oFCIomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIH7srsejFy8ggr4dbA0LV+SAvOH4L/4ksrhQQBKtlwC9dGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" width="96" height="96" alt="通常版"><figcaption>通常版</figcaption></figure><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOjQ3ZjA1ZjU3LTU4Y2UtNDg2ZS04MTFmLTJhYTQyNjRiYjQ0MwAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNooj+XPUWAX7uEHnS/+mBkugAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6Y2ZiZTFmODQtZWI0MS00OGY5LTgwODUtNGY4NThkOGVmODZibHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaITqNNrY73quMJZtgkPbAigAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIJ7rXmbZ9DWcH77y/OgPLaJtnFxxUI8pRX4TsXM61BwRpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2gwVDF3skN1JalRMPfKFQRPAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggMro/GHQyg1faLg7CXxzH/uFBRRJEs5wrFa0bcSj91AZkbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTo0N2YwNWY1Ny01OGNlLTQ4NmUtODExZi0yYWE0MjY0YmI0NDMvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDo4NGQzYjM4Yy1kNGZmLTRjM2ItYmZjNS02ZmNmYTY4NDgyODVyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggnuteZtn0NZwfvvL86A8tom2cXHFQjylFfhOxczrUHBGiY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIO4WnmZy+KpGHMNkGD/1uLhxgDcRYtHNdMZgt6UYu2BgomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIEsJjP+AHySdFMpfUoMUacG50hLUOjm+hWPf2aAueWYddGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" width="96" height="96" alt="ハイライト版"><figcaption>ハイライト版</figcaption></figure></div>
+    <p>参考画像との差分をピクセル単位で分析し、背景の青がより明るく鮮やかに（彩度と明度が上昇）、バッジのオレンジも明るい黄寄りの色に変化していることを確認しました。同じ変化率を先ほどのアイコンに適用してハイライト版を作成しました。</p>
+    <ul>
+      <li>通常版：<code>icon1_hint_maintenance.png</code></li>
+      <li>ハイライト版：<code>icon1_hint_maintenance_highlight.png</code>（背景・電球・バッジの色を明るく調整）</li>
+    </ul>
+    <p>ホバー時やアクティブ状態のアイコンとして使う想定でしょうか？明るさの度合いが強すぎる/弱すぎる場合は調整できます。</p>
+  </div></div>
+</section>
+
+<!-- 11 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#11</div><div class="body">
+    <p>添付したファイルを参考に画像に濃い青色の枠をつけてくれますか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p class="tool">元アイコンの外周ピクセルを確認 → 枠付きの2バージョンを生成</p>
+    <div class="figs"><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOjMzYzJlNjE4LTkyMTktNDU1Yi05YWJiLTcwZWVkYjE0ODBjZAAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNojuqxghPqlDqPWqCmZV+0/QAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6MjBkZDcwOGEtNjk1ZC00NjAwLWFmOTgtNjhlNjg3YTBlMjI4bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaASdgO3szHubs1tV1Wo2T5YAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIOyYyNWrgfKQBbokp6F3uswBYAVfCvJ2YSJ2HSD625DhpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2iJ3jAg7aGm0cw4c6D/0YeLAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggbSZYrVHgTh3gr7CGz4lLGEnNvK3zvMCXkxMLkmyYqdVkbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTozM2MyZTYxOC05MjE5LTQ1NWItOWFiYi03MGVlZGIxNDgwY2QvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDpiMGViOTU3Ny0wMTE0LTRkYWQtODZkNS0yNjk3YzA5MTM5YjdyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgg7JjI1auB8pAFuiSnoXe6zAFgBV8K8nZhInYdIPrbkOGiY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIF+mevzcx8IeKDVtNM9ycvwFUN3N1eFcZ4omRrv5IvCBomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIECKH+Z4zzQbfs0PPB4B2NxPgEEYxdnhChxUPCmnFI1TdGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" width="96" height="96" alt="通常版（枠付き）"><figcaption>通常版（枠付き）</figcaption></figure><figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOjhiOWZjMjMzLWUwZDQtNDVhNC04NGZiLTY0NDE5OWUwOTA4ZAAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNos0w98zylzd+fq4WRiCCiwwAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6NzM5NDA1NmMtYzhiNS00Zjc4LTk5NzMtNzIwNmY5ODk1Nzg0bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaIpr5oJc0Tw9oq2jyfHVploAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIHjvgRc1aB92kShHOMPK/cXP3CVgDRmcf+J2VziX5qlNpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2gSkqTjr4tFF/kwgg/+z5tdAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggj9RX8ccRMhwhp9D0XpVfz7c6ONDAfcGierFuSugv7v9kbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTo4YjlmYzIzMy1lMGQ0LTQ1YTQtODRmYi02NDQxOTllMDkwOGQvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDpjMTEwM2VmNS04OTFmLTRkMDYtOWFiYy04MDViN2YzMzM2MDFyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggeO+BFzVoH3aRKEc4w8r9xc/cJWANGZx/4nZXOJfmqU2iY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYIAfuc8GECnNtfzTxo8rA9pKqwJe28R85Fm5qNgTteYh/omN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIAJr8X6xeEXy13hNnqmkOy6BNvlws4bpyGohrn3f4tI2dGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" width="96" height="96" alt="ハイライト版（枠付き）"><figcaption>ハイライト版（枠付き）</figcaption></figure></div>
+    <p>添付いただいた元アイコンをピクセル単位で確認したところ、角丸四角の外周に濃い紺色（RGB 15,42,137付近）の縁取りが入っていました。同じ色味の枠を2つのアイコンに追加しました。</p>
+    <ul>
+      <li>通常版：<code>icon1_hint_maintenance_bordered.png</code></li>
+      <li>ハイライト版：<code>icon1_hint_maintenance_highlight_bordered.png</code></li>
+    </ul>
+    <p>枠の太さや色の濃さが意図と違う場合は調整できます。</p>
+  </div></div>
+</section>
+
+<!-- ============ GROUP 3 ============ -->
+<h2 class="group" id="g3">Service層とRepository層の設計</h2>
+
+<!-- 12 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#12</div><div class="body">
+    <p>asp.net mvcでserviceレイヤーのクラスはcontroller単位で作成するのがいいですか？それとも機能単位がいいですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>結論から言うと、<strong>機能（ドメイン）単位でのService作成をおすすめします</strong>。ただし例外もあります。</p>
+    <h4>機能単位が有利な理由</h4>
+    <ul>
+      <li><strong>ロジックの重複を防げる</strong>。同じ業務ロジックが複数のControllerから呼ばれることは業務システムでよくあります。Controller単位だと、同じ判定ロジックが画面ごとのServiceに重複しがちです。Q&amp;A機能のように、管理者側と従業員側の両方のControllerから同じスレッド操作ロジックを呼ぶ構造は、機能単位Serviceが活きる典型例です。</li>
+      <li><strong>ドメイン用語と一致させやすい</strong>。業務ドメインの概念に沿って <code>KoujoService</code>、<code>HaigushaService</code> のように切ると、税務知識を持つ人がコードを読んだときに「どこに何があるか」が理解しやすくなります。</li>
+      <li><strong>テストしやすい</strong>。UIの都合に左右されない単体テストが書きやすくなります。</li>
+    </ul>
+    <h4>Controller単位が向いているケース</h4>
+    <ul>
+      <li>各Controllerが独立した1機能に対応していて、ロジックを共有する見込みがほぼない場合（単純なCRUD画面など）</li>
+      <li>小規模なアプリで、「どのControllerがどのServiceを使っているか」の対応の分かりやすさを優先したい場合</li>
+      <li>開発初期でドメインの境界がまだ固まっていない場合</li>
+    </ul>
+    <h4>forstaffへの適用イメージ</h4>
+    <ul>
+      <li><code>KoujoService</code>（各種控除計算：基礎控除・配偶者控除・扶養控除など）</li>
+      <li><code>HaigushaClassificationService</code>（配偶者区分判定）</li>
+      <li><code>QuestionThreadService</code>（Q&amp;Aメッセージング、Admin/Employee両方から利用）</li>
+      <li><code>FileImportService</code>（文字コード判定含むファイル取込処理）</li>
+    </ul>
+    <p>Controller（<code>EmployeeController</code>, <code>AdminController</code> など）はこれらのServiceを組み合わせて画面固有のオーケストレーションだけを担当する、という役割分担にすると、UIの都合とビジネスロジックが分離されて見通しが良くなります。機能単位に切る際は、Serviceが肥大化したらさらに粒度を細かくする判断も必要です。</p>
+  </div></div>
+</section>
+
+<!-- 13 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#13</div><div class="body">
+    <p>Service層で別のサービスに相互に呼び出す場合に気を付けることはありますか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>Service間の相互呼び出しは便利な反面、放っておくと保守性が一気に下がりやすい部分です。</p>
+    <h4>1. 循環参照（相互依存）を避ける</h4>
+    <p>ServiceAがServiceBを呼び、ServiceBもServiceAを呼ぶ構造は避けます。コンパイルは通っても、無限ループやDIの解決失敗を引き起こします。<strong>依存の方向を一方向に固定するレイヤールールを決める</strong>のが対策です。双方向の連携が必要に見える場合は、共通ロジックが別に切り出されていないサインなので、第三のServiceに抽出して両方から参照します。</p>
+    <h4>2. トランザクション・DbContextの扱い</h4>
+    <p>EF6では、ServiceA→ServiceBと呼び出す際にそれぞれが別々の <code>DbContext</code> を持つと、片方だけ <code>SaveChanges()</code> が成功して整合性が崩れます。</p>
+    <ul>
+      <li>1リクエスト内で複数Serviceが同じデータ操作に関与する場合は、同じ <code>DbContext</code> インスタンスをDIで共有する（リクエスト単位）のが基本です。</li>
+      <li>複数の <code>SaveChanges()</code> にまたがる操作をアトミックにしたい場合は、<code>TransactionScope</code> や <code>Database.BeginTransaction()</code> で明示的にトランザクション境界を作ります。</li>
+      <li>どちらが <code>SaveChanges()</code> を呼ぶ責任を持つかをルールとして決めておくと事故が減ります。</li>
+    </ul>
+    <h4>3. 責務の重複・境界の曖昧化</h4>
+    <p>「このバリデーションはどっちのServiceの責任か」が曖昧になると、ロジックの二重管理になり、片方だけ改修して不整合が起きます。相手のServiceが何を保証するかを明確にし、同じ判定ロジックを自分でも実装し直さないことが重要です。</p>
+    <h4>4. テストのしやすさが下がる</h4>
+    <ul>
+      <li>各Serviceはインターフェース（<code>IKoujoService</code> など）越しに依存させ、モック差し替えを容易にします。</li>
+      <li>1つのServiceが呼ぶ他Serviceの数が多くなりすぎたら（目安は4〜5個以上）、責務が大きすぎるサインとして分割を検討します。</li>
+    </ul>
+    <h4>5. パフォーマンス（N+1呼び出し）</h4>
+    <p>一覧取得時に、スレッドごとに別Serviceを1件ずつ呼んでDBアクセスする実装だと、件数分のクエリが飛ぶN+1問題が発生します。Service間の呼び出しがループの中に入っていないかをレビューで確認します。</p>
+    <h4>チェックリスト</h4>
+    <ul>
+      <li>依存の方向は一方向か（循環していないか）</li>
+      <li><code>DbContext</code> とトランザクション境界は誰が管理するか明確か</li>
+      <li>同じ業務ルールを複数箇所で再実装していないか</li>
+      <li>モックの数が異常に増えていないか</li>
+      <li>ループの中でService呼び出し（＝DBアクセス）をしていないか</li>
+    </ul>
+  </div></div>
+</section>
+
+<!-- 14 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#14</div><div class="body">
+    <p>serviceがインスタンスを生成する必要がなければstatic classにする方がいいですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>結論としては、<strong>Service層のクラスはインスタンスの生成が不要でも、staticクラスにしない方が無難</strong>です。</p>
+    <h4>staticにすべきでない理由</h4>
+    <ul>
+      <li><strong>DIコンテナで差し替え・モック化ができなくなる</strong>。staticクラスはインターフェースを実装できず、呼び出し側が <code>KoujoService.Calculate(...)</code> のように直接依存するため、テスト時に本物のロジックを必ず通ります。</li>
+      <li><strong>DbContextやILoggerなどの依存を注入できない</strong>。今はDBアクセスがなくても、将来「マスタテーブルの参照が必要になった」という変更は業務システムでは頻繁に起こります。</li>
+      <li><strong>一貫性が崩れる</strong>。DI経由のインスタンスとstaticが混在すると、呼び出し方が統一されず、毎回コードを見て確認する手間が発生します。</li>
+    </ul>
+    <h4>staticが向いているケース</h4>
+    <p>ビジネスロジックではなく、純粋なユーティリティ・ヘルパーであればstaticが適切です。判断基準は「DIコンテナで差し替えたくなる可能性があるか」「外部依存（DB、外部API、設定値）を持つ可能性があるか」です。<code>EncodingDetector</code> のようなクラスは、状態を持たない純粋な変換ロジックで、外部依存も発生しないため、staticのままで問題ありません。</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>種類</th><th>staticでよいか</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>文字コード判定、日付フォーマット変換などの純粋関数</td><td>○ static可</td><td>外部依存なし、モック不要</td></tr>
+        <tr><td>控除計算、判定ロジックなどの業務Service</td><td>✕ インスタンス化推奨</td><td>将来のDB依存追加・テストのモック化に備える</td></tr>
+        <tr><td>他のServiceを呼び出すService</td><td>✕ インスタンス化必須</td><td>依存をコンストラクタ注入するため</td></tr>
+      </tbody>
+    </table></div>
+  </div></div>
+</section>
+
+<!-- 15 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#15</div><div class="body">
+    <p>管理画面専用のServiceがあり、そのServiceにビジネスロジックを集約してviewModelを返却する実装としています。DBへのアクセスはリポジトリ層に分離したほうがいいですか？</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>結論としては、<strong>「必ずRepository層を挟むべき」とは言い切れず、状況次第</strong>です。EF6の <code>DbContext</code> 自体がRepository/Unit of Workパターンに近い機能を提供しているため、追加のRepository層のメリットとコストを天秤にかける必要があります。</p>
+    <h4>Repository層を追加するメリット</h4>
+    <ul>
+      <li><strong>テストのしやすさ</strong>。EF6で <code>DbContext</code> を直接モックするのは面倒です。<code>IKoujoRepository</code> のようなインターフェースで抽象化すれば、Moqで簡単にモックできます。</li>
+      <li><strong>クエリロジックの再利用・一元管理</strong>。似たLINQクエリが散らばるのを防げます。</li>
+      <li><strong>EF6依存をServiceから隔離できる</strong>。ORMの移行や一部Dapper化の際の影響範囲が小さくなります。</li>
+    </ul>
+    <h4>Repository層を追加しないメリット</h4>
+    <ul>
+      <li><strong>不要な抽象化のオーバーヘッドを避けられる</strong>。<code>GetById</code>, <code>GetAll</code> だけの薄いRepositoryは「Repository over Repository」問題になりがちです。</li>
+      <li><strong>LINQの表現力を活かしやすい</strong>。管理画面特有の複雑な絞り込み・集計は、Service内で直接LINQを書く方が柔軟です。</li>
+    </ul>
+    <h4>実務的な判断基準</h4>
+    <ul>
+      <li>そのServiceの単体テストを書く予定があるか。ある場合はRepository層をインターフェース経由で挟んだ方が書きやすくなります。</li>
+      <li>クエリが単純なCRUD中心か、複雑な集計・結合が多いか。</li>
+      <li>チーム内で既にRepositoryパターンの規約があるか。あるなら揃えた方が無難です。</li>
+    </ul>
+    <h4>折衷案：Query Objectとして切る</h4>
+    <p>テスト容易性だけが目的なら、汎用的な <code>IRepository&lt;T&gt;</code> ではなく、その画面固有のクエリだけを小さなクラスに切り出す方法もあります。</p>
+<pre><code>public interface IUnsubmittedEmployeeQuery
+{
+    List&lt;Employee&gt; GetUnsubmittedEmployees(int year);
+}</code></pre>
+    <p>現在のServiceが具体的にどんなDBアクセス（単純なCRUDか、複雑な集計か）をしているか教えていただければ、より具体的に判断できます。</p>
+  </div></div>
+</section>
+
+<!-- 16 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#16</div><div class="body">
+    <p>添付の通りです。</p>
+    <p class="attach">添付ファイル ・ HintTextUploadService.cs（変更前、約500行）</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>実際のコードを拝見しました。<strong>全面的にRepository層に分離する必要はなく、部分的な切り出しが妥当</strong>というのが率直な評価です。</p>
+    <h4>そのままServiceに置いてよい部分</h4>
+    <p><code>GetHintTextList</code>、<code>StartEdit</code> 内の <code>FirstOrDefault</code>、<code>Delete</code>、<code>Reset</code>、<code>Download</code> のクエリは、単純な条件検索・削除・一覧取得です。インターフェースで抽象化しても薄いレイヤーになりがちなので、今のままEF6を直接使う実装で問題ありません。</p>
+    <h4>切り出した方がよい部分：<code>MergeHintCSV</code></h4>
+    <ul>
+      <li><strong>ビジネスロジックではなく、DB技術固有の実装であること</strong>。<code>SqlBulkCopy</code>、一時テーブル（<code>#HintText</code>）、<code>MERGE</code> 文は、業務ルールではなくSQL Serverでの効率的な一括更新の実装方法です。</li>
+      <li><strong>コメントがそれを示唆している</strong>。<code>&lt;remarks&gt;テーブルの構成が変われば BulkCopy、MergeSQLをメンテナンスしてください。&lt;/remarks&gt;</code> は、スキーマ依存の箇所をRepository層に切り出すべき理由そのものです。</li>
+      <li><strong>テストのしやすさ</strong>。<code>private</code> で、DataTable生成・BulkCopy・トランザクションが1メソッドに入っているため、単体テストがほぼ不可能です。</li>
+    </ul>
+<pre><code>public interface IHintTextBulkMergeRepository
+{
+    int Merge(DataTable data);
+}
+
+private int MergeHintCSV(HintTextUploadViewModel viewModel)
+{
+    var dt = BuildDataTable(viewModel); // CSV→DataTable変換だけを担当
+    if (dt.Rows.Count == 0) return 0;
+    return _bulkMergeRepository.Merge(dt);
+}</code></pre>
+    <h4>その他、気になった点</h4>
+    <ul>
+      <li><strong>try-catch-ログ-rethrowの重複が非常に多い</strong>。共通化の余地が大きいです。<code>ExecuteWithLogging&lt;T&gt;(Func&lt;T&gt; action)</code> のような共通メソッドにまとめられます。<code>this.ThisName()</code> が呼び出し元メソッド名を拾う実装なら、<code>CallerMemberName</code> 属性を使う形への変更が必要かもしれません。</li>
+      <li><strong><code>DbContext</code> の生成回数</strong>。1リクエスト内で <code>dbModel</code> が複数回生成されていますが、各操作が独立したトランザクションで問題ない設計なので実害はありません。</li>
+      <li><strong><code>errorProc</code> のnew</strong>。staticメソッド呼び出し可能なユーティリティなら、static化してインスタンス生成を省略できそうです。</li>
+    </ul>
+    <p>まとめると、Repository層は「全部切り出す」か「全部切り出さない」かの二択ではなく、<code>MergeHintCSV</code> のようなDB技術固有・複雑度の高い処理だけを切り出すのが今回は最も費用対効果が高い判断です。この分離をコードとして書いてみましょうか？</p>
+  </div></div>
+</section>
+
+<!-- 17 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#17</div><div class="body">
+    <p>お願いします。</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p><code>MergeHintCSV</code> をRepository層に分離したコードを作成します。CSVパース（DataTable変換）はビジネスロジックとしてServiceに残し、SQL Server固有の一括更新処理（SqlBulkCopy + MERGE文）をRepositoryに移動します。</p>
+    <p class="tool">ファイル作成 ・ IHintTextBulkMergeRepository.cs / HintTextBulkMergeRepository.cs / HintTextUploadService.cs</p>
+    <details class="code"><summary>IHintTextBulkMergeRepository.cs ・ 全文 21行</summary><pre><code>using System.Data;
+
+namespace manager.Repositories
+{
+    /// &lt;summary&gt;
+    /// HintTextテーブルへの一括マージ処理を提供します。
+    /// SqlBulkCopy・一時テーブル・MERGE文といったSQL Server固有の実装を担当します。
+    /// &lt;/summary&gt;
+    public interface IHintTextBulkMergeRepository
+    {
+        /// &lt;summary&gt;
+        /// DataTableの内容をHintTextテーブルにマージ（Upsert）します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="dt"&gt;
+        /// CompanyCd, Year, QuestionCd, HintText, LastUpdateTime の列を持つDataTable
+        /// &lt;/param&gt;
+        /// &lt;returns&gt;マージ対象となった行数&lt;/returns&gt;
+        /// &lt;remarks&gt;テーブルの構成が変われば BulkCopy、MergeSQLをメンテナンスしてください。&lt;/remarks&gt;
+        int Merge(DataTable dt);
+    }
+}</code></pre></details>
+    <details class="code"><summary>HintTextBulkMergeRepository.cs ・ 全文 99行</summary><pre><code>using CommonUtils.Extensions;
+using manager.Models;
+using System;
+using System.Data;
+using System.Data.SqlClient;
+
+namespace manager.Repositories
+{
+    /// &lt;inheritdoc cref="IHintTextBulkMergeRepository"/&gt;
+    public class HintTextBulkMergeRepository : IHintTextBulkMergeRepository
+    {
+        /// &lt;inheritdoc/&gt;
+        /// &lt;remarks&gt;テーブルの構成が変われば BulkCopy、MergeSQLをメンテナンスしてください。&lt;/remarks&gt;
+        public int Merge(DataTable dt)
+        {
+            try
+            {
+                if (dt == null || dt.Rows.Count == 0)
+                    return 0;
+
+                using (var db = new dbModel())
+                using (var tran = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        // 一時テーブルに追加後にマージする
+                        var sql = @"
+                            drop table if exists #HintText;
+                            select top 0 * into #HintText from HintText;
+                            ";
+                        db.Database.ExecuteSqlCommand(sql);
+
+                        using (var bulk = new SqlBulkCopy(
+                            db.Database.Connection as SqlConnection,
+                            SqlBulkCopyOptions.Default,
+                            db.Database.CurrentTransaction.UnderlyingTransaction as SqlTransaction))
+                        {
+                            bulk.DestinationTableName = "#HintText";
+                            foreach (DataColumn col in dt.Columns)
+                            {
+                                bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+                            }
+                            bulk.WriteToServer(dt);
+                        }
+
+                        sql = @"
+                            merge into HintText as target
+                            using #HintText as source
+                            on
+                            (
+                                target.CompanyCd = source.CompanyCd and target.Year = source.Year and target.QuestionCd = source.QuestionCd
+                            )
+                            when matched then
+                                update set
+                                    target.HintText = source.HintText,
+                                    target.LastUpdateTime = source.LastUpdateTime
+                            when not matched by target then
+                                insert
+                                (
+                                    CompanyCd,
+                                    Year,
+                                    QuestionCd,
+                                    HintText,
+                                    LastUpdateTime
+                                )
+                                values
+                                (
+                                    source.CompanyCd,
+                                    source.Year,
+                                    source.QuestionCd,
+                                    source.HintText,
+                                    source.LastUpdateTime
+                                );
+                            ";
+                        db.Database.ExecuteSqlCommand(sql);
+
+                        sql = @"drop table if exists #HintText;";
+                        db.Database.ExecuteSqlCommand(sql);
+
+                        tran.Commit();
+                    }
+                    catch
+                    {
+                        tran?.Rollback();
+                        throw;
+                    }
+                }
+
+                return dt.Rows.Count;
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+    }
+}</code></pre></details>
+    <details class="code"><summary>HintTextUploadService.cs ・ 全文 475行</summary><pre><code>using CommonUtils.Extensions;
+using CommonUtils.Utility;
+using EDMCore.Models.Entities;
+using manager.Models;
+using manager.Models.HintTextUpload;
+using manager.Repositories;
+using Microsoft.VisualBasic.FileIO;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Web.Mvc;
+using static CommonUtils.Extensions.StringExtensions;
+
+namespace manager.Services
+{
+    /// &lt;summary&gt;
+    /// HintTextアップロード機能のビジネスロジックを提供します。
+    /// &lt;/summary&gt;
+    public class HintTextUploadService
+    {
+        private readonly IHintTextBulkMergeRepository _bulkMergeRepository;
+
+        /// &lt;summary&gt;
+        /// 既定のRepository実装を使用してServiceを生成します。
+        /// &lt;/summary&gt;
+        public HintTextUploadService() : this(new HintTextBulkMergeRepository())
+        {
+        }
+
+        /// &lt;summary&gt;
+        /// Repositoryを指定してServiceを生成します（テスト時のモック差し替え用）。
+        /// &lt;/summary&gt;
+        /// &lt;param name="bulkMergeRepository"&gt;&lt;/param&gt;
+        public HintTextUploadService(IHintTextBulkMergeRepository bulkMergeRepository)
+        {
+            _bulkMergeRepository = bulkMergeRepository;
+        }
+
+        /// &lt;summary&gt;
+        /// 年度コンボボックスの値一覧（5年前～来年）を取得します。
+        /// &lt;/summary&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private IEnumerable&lt;SelectListItem&gt; GetYearList()
+        {
+            try
+            {
+                const int Range = 5;
+                return Enumerable.Range(DateTime.Now.Year - Range, Range + 2)
+                    .Select(y =&gt; new SelectListItem { Value = y.ToString(), Text = $"{y}年" })
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// ヒントテキスト一覧を取得します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="companyCd"&gt;&lt;/param&gt;
+        /// &lt;param name="year"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private IEnumerable&lt;HintTexts&gt; GetHintTextList(int companyCd, int year)
+        {
+            try
+            {
+                using (var db = new dbModel())
+                {
+                    return db.HintText.AsNoTracking()
+                        .Where(h =&gt; h.CompanyCd == companyCd &amp;&amp; h.Year == year)
+                        .OrderBy(h =&gt; h.QuestionCd)
+                        .ToList()
+                        ;
+                }
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// HintTextUploadViewModelの共通処理を集約します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private HintTextUploadViewModel SetViewModel(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                viewModel.YearList = GetYearList();
+                viewModel.HintTextList = GetHintTextList(viewModel.CompanyCd, viewModel.Year);
+
+                return viewModel;
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// 初期表示用のViewModelを生成します
+        /// &lt;/summary&gt;
+        /// &lt;param name="year"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel CreateViewModel(int companyCd, int year) 
+            =&gt; SetViewModel(new HintTextUploadViewModel { CompanyCd = companyCd, Year = year });
+        
+        /// &lt;summary&gt;
+        /// ファイルのアップロード
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel Upload(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                if (viewModel.CsvFile == null || viewModel.CsvFile.ContentLength &lt;= 0)
+                {
+                    viewModel.ErrorMessage = "CSVファイルが選択されていません。";
+                    return SetViewModel(viewModel);
+                }
+
+                // CSVをHintTextテーブルにマージ
+                var count = MergeHintCSV(viewModel);
+                if (count == 0)
+                {
+                    viewModel.ErrorMessage = "取込データが0件でした";
+                }
+                else
+                {
+                    viewModel.SuccessMessage = $"{count}件CSVデータを取込みました";
+                }
+                    
+                return SetViewModel(viewModel);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// 編集を開始します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel StartEdit(HintTextUploadViewModel viewModel, EditMode mode)
+        {
+            try
+            {
+                if (mode == EditMode.Add)
+                {
+                    viewModel.EditHintText = new HintTexts
+                    {
+                        CompanyCd = viewModel.CompanyCd,
+                        Year = viewModel.Year
+                    };
+                }
+                else
+                {
+                    using (var db = new dbModel())
+                    {
+                        viewModel.EditHintText = db.HintText
+                            .FirstOrDefault(h =&gt;
+                                h.CompanyCd == viewModel.CompanyCd
+                                &amp;&amp; h.Year == viewModel.Year
+                                &amp;&amp; h.QuestionCd == viewModel.SelectQuestionCd
+                                )
+                            ?? new HintTexts
+                            {
+                                CompanyCd = viewModel.CompanyCd,
+                                Year = viewModel.Year
+                            };
+                        ;
+                    }
+                }
+
+                viewModel.EditMode = mode;
+
+                return SetViewModel(viewModel);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// QustionIdを指定してHintTextを削除します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel Delete(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                using (var db = new dbModel())
+                {
+                    var hintText = db.HintText
+                        .FirstOrDefault(h =&gt;
+                            h.CompanyCd == viewModel.CompanyCd
+                            &amp;&amp; h.Year == viewModel.Year
+                            &amp;&amp; h.QuestionCd == viewModel.SelectQuestionCd
+                            );
+                        
+                    if (hintText != null)
+                    {
+                        db.HintText.Remove(hintText);
+                    }
+
+                    db.SaveChanges();                    
+                }
+
+                return SetViewModel(viewModel);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// 企業ID、年度を指定してHintTextを削除します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel Reset(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                using (var db = new dbModel())
+                {
+                    var hintText = db.HintText
+                        .Where(h =&gt;
+                            h.CompanyCd == viewModel.CompanyCd
+                            &amp;&amp; h.Year == viewModel.Year
+                            );
+
+                    if (hintText.Any())
+                    {
+                        db.HintText.RemoveRange(hintText);
+                    }
+
+                    db.SaveChanges();
+                }
+
+                return SetViewModel(viewModel);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// HintTextをCSV形式のファイルに変換します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public FileContentResult Download(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                using (var db = new dbModel())
+                {
+                    var hintTexts = db.HintText
+                        .Where(h =&gt;
+                            h.CompanyCd == viewModel.CompanyCd &amp;&amp;
+                            h.Year == viewModel.Year)
+                        .OrderBy(h =&gt; h.QuestionCd)
+                        .ToList();
+
+                    var sb = new StringBuilder();
+
+                    // ヘッダー
+                    sb.AppendLine("QuestionCd,HintText");
+
+                    foreach (var item in hintTexts)
+                    {
+                        sb.AppendLine(string.Join(",", item.QuestionCd, item.HintText.EscapeCsv(CrLfHandling.Keep)));
+                    }
+
+                    // UTF-8(BOM付き)
+                    var encoding = new UTF8Encoding(true);
+                    var bom = encoding.GetPreamble();
+                    var body = encoding.GetBytes(sb.ToString());
+
+                    var bytes = new byte[bom.Length + body.Length];
+                    Buffer.BlockCopy(bom, 0, bytes, 0, bom.Length);
+                    Buffer.BlockCopy(body, 0, bytes, bom.Length, body.Length);
+
+                    return new FileContentResult(bytes, "text/csv; charset=utf-8")
+                    {
+                        FileDownloadName = $"HintText_{viewModel.Year}.csv"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// CSVファイルをHintTextテーブルにマージします。
+        /// CSVのパース（DataTableへの変換）まではビジネスロジックとしてここで行い、
+        /// DB固有の一括更新処理は &lt;see cref="IHintTextBulkMergeRepository"/&gt; に委譲します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private int MergeHintCSV(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                var dt = BuildHintTextDataTable(viewModel);
+
+                if (dt.Rows.Count == 0)
+                    return 0;
+
+                return _bulkMergeRepository.Merge(dt);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// アップロードされたCSVファイルを読み取り、HintTextテーブルにマージ可能な
+        /// DataTable（CompanyCd, Year, QuestionCd, HintText, LastUpdateTime）を組み立てます。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private DataTable BuildHintTextDataTable(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                var now = DateTime.Now;
+                var dt = new DataTable();
+                dt.Columns.Add("CompanyCd", typeof(int));
+                dt.Columns.Add("Year", typeof(int));
+                dt.Columns.Add("QuestionCd", typeof(int));
+                dt.Columns.Add("HintText", typeof(string));
+                dt.Columns.Add("LastUpdateTime", typeof(DateTime));
+
+                using (var sr = ReadCsvFile(viewModel))
+                {
+                    var headerFields = sr.ReadFields(); // ヘッダー行を読み飛ばす
+                    while (!sr.EndOfData)
+                    {
+                        var fields = sr.ReadFields();
+                        if (fields.Length &lt; 2 || !int.TryParse(fields[0], out var questionCd)) continue;
+
+                        var row = dt.NewRow();
+                        row["CompanyCd"] = viewModel.CompanyCd;
+                        row["Year"] = viewModel.Year;
+                        row["QuestionCd"] = questionCd;
+                        row["HintText"] = fields[1];
+                        row["LastUpdateTime"] = now;
+                        dt.Rows.Add(row);
+                    }
+                }
+
+                return dt;
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// CSV読み込み
+        /// &lt;/summary&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        private TextFieldParser ReadCsvFile(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                var encoding = EncodingDetector.DetectEncoding(viewModel.CsvFile.InputStream);
+                var sr = new TextFieldParser(viewModel.CsvFile.InputStream, encoding) 
+                {
+                    TextFieldType = FieldType.Delimited,    // カンマ区切りの指定
+                    HasFieldsEnclosedInQuotes = true,       // フィールドが引用符で囲まれている
+                    TrimWhiteSpace = false                  // フィールドの空白トリム設定
+                };
+
+                sr.SetDelimiters(",");
+
+                return sr;
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+        /// &lt;summary&gt;
+        /// HintTextを更新します。
+        /// &lt;/summary&gt;
+        /// &lt;param name="viewModel"&gt;&lt;/param&gt;
+        /// &lt;returns&gt;&lt;/returns&gt;
+        public HintTextUploadViewModel Update(HintTextUploadViewModel viewModel)
+        {
+            try
+            {
+                var editHintText = viewModel.EditHintText;
+                
+                if (editHintText == null)  
+                    return SetViewModel(viewModel);
+
+                using (var db = new dbModel())
+                {
+                    var hintText = db.HintText
+                        .FirstOrDefault(h =&gt;
+                            h.CompanyCd == editHintText.CompanyCd
+                            &amp;&amp; h.Year == editHintText.Year
+                            &amp;&amp; h.QuestionCd == editHintText.QuestionCd
+                            );
+
+                    if (hintText == null) {
+                        hintText = new HintTexts 
+                        { 
+                            CompanyCd = editHintText.CompanyCd, 
+                            Year = editHintText.Year, 
+                            QuestionCd = editHintText.QuestionCd 
+                        };
+                        db.HintText.Add(hintText);
+                    }
+
+                    hintText.HintText = editHintText.HintText;
+                    hintText.LastUpdateTime = DateTime.Now;
+
+                    db.SaveChanges();
+                }
+                
+                return SetViewModel(viewModel);
+            }
+            catch (Exception ex)
+            {
+                errorProc err = new errorProc();
+                err.ErrLog(this.ThisName(), ex);
+                throw;
+            }
+        }
+
+    }
+}</code></pre></details>
+    <h4>3ファイルの内容</h4>
+    <ul>
+      <li><strong><code>IHintTextBulkMergeRepository.cs</code></strong>：インターフェース。<code>Merge(DataTable dt)</code> の1メソッドのみ。汎用的な <code>GetById</code> のようなメソッドは持たせず、この画面固有の処理に絞っています。</li>
+      <li><strong><code>HintTextBulkMergeRepository.cs</code></strong>：実装クラス。元の <code>MergeHintCSV</code> にあった <code>SqlBulkCopy</code>・一時テーブル・<code>MERGE</code> 文・トランザクション管理をそのまま移動しました。ロジックは変更していません。</li>
+      <li><strong><code>HintTextUploadService.cs</code></strong>：コンストラクタを2つ追加し、<code>MergeHintCSV</code> を <code>BuildHintTextDataTable</code>（CSV→DataTable変換、Serviceに残留）と、結果を <code>_bulkMergeRepository.Merge()</code> に渡すだけの薄い調整役に分割しました。<code>System.Data.SqlClient</code> のusingは不要になったので削除しています。</li>
+    </ul>
+    <p>既存のController側で <code>new HintTextUploadService()</code> と呼んでいる箇所はそのまま動作し、単体テスト時は <code>new HintTextUploadService(mockRepository)</code> でモックに差し替えられます。<code>MergeHintCSV</code> の0件チェックのタイミングは変わっていません。</p>
+    <p>このRepositoryクラスをDIコンテナに登録する場合の設定コードも、使用しているDIコンテナを教えていただければ書きます。</p>
+  </div></div>
+</section>
+
+<!-- 18 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#18</div><div class="body">
+    <p>以下のコードを説明してください。</p>
+<pre><code>public HintTextUploadService() : this(new HintTextBulkMergeRepository()) { }
+public HintTextUploadService(IHintTextBulkMergeRepository bulkMergeRepository) { ... }</code></pre>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>このコードは<strong>「コンストラクタチェーン（constructor chaining）」</strong>というC#の機能で、2つのコンストラクタを定義しています。</p>
+    <h4>それぞれの役割</h4>
+<pre><code>public HintTextUploadService() : this(new HintTextBulkMergeRepository()) { }</code></pre>
+    <p><strong>引数なしコンストラクタ</strong>です。中身は空ですが、<code>: this(...)</code> の部分で「自分自身の別のコンストラクタを、指定した引数付きで先に呼び出す」という指示をしています。</p>
+<pre><code>public HintTextUploadService(IHintTextBulkMergeRepository bulkMergeRepository)
+{
+    _bulkMergeRepository = bulkMergeRepository;
+}</code></pre>
+    <p><strong>本体のコンストラクタ</strong>です。渡された <code>IHintTextBulkMergeRepository</code> を <code>_bulkMergeRepository</code> フィールドに保存する、実際の初期化処理です。</p>
+    <h4>実行される順序</h4>
+    <p><code>new HintTextUploadService()</code>（引数なし）を呼んだ場合の流れはこうです。</p>
+    <ol>
+      <li><code>new HintTextBulkMergeRepository()</code> で具象クラスのインスタンスを生成</li>
+      <li>そのインスタンスを引数として、<code>this(...)</code> 経由で本体のコンストラクタを呼び出す</li>
+      <li>本体が実行され、<code>_bulkMergeRepository</code> にセットされる</li>
+    </ol>
+    <h4>なぜこう分けているか</h4>
+    <ul>
+      <li><strong>本体側</strong>を用意しておくことで、単体テスト時に <code>new HintTextUploadService(mockRepo.Object)</code> のようにモックを注入でき、実際のDBアクセスなしでビジネスロジックだけをテストできます。</li>
+      <li><strong>引数なし側</strong>を用意しているのは、既存のController側のコードが <code>new HintTextUploadService()</code> と呼んでいるためです。デフォルト実装を内部で渡すことで、既存の呼び出しコードは一切変更せずに済みます。</li>
+    </ul>
+<pre><code>Controller側（既存コードのまま）
+  new HintTextUploadService()
+        │
+        ▼
+  HintTextUploadService()  ← 引数なし
+        │  : this(new HintTextBulkMergeRepository())
+        ▼
+  HintTextUploadService(IHintTextBulkMergeRepository bulkMergeRepository)  ← 本体
+        │
+        ▼
+  _bulkMergeRepository = bulkMergeRepository;  （本物のRepositoryがセットされる）
+
+
+テストコード（新規）
+  new HintTextUploadService(mockRepo.Object)
+        │
+        ▼
+  本体を直接呼ぶ → _bulkMergeRepository = mockRepo.Object;  （モックがセットされる）</code></pre>
+    <p>将来UnityやAutofacなどのDIコンテナを導入する場合は、コンテナが対応関係を管理してくれるため、この引数なしコンストラクタ自体が不要になる可能性もあります。現時点では「DIコンテナなしでもテスト容易性を確保する」ための実務的な折衷案です。</p>
+  </div></div>
+</section>
+
+<!-- 19 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#19</div><div class="body">
+    <p>現在のディレクトリ構成は以下の通りです。Repositoresを追加でいいですか？</p>
+<pre><code>root
+  Services
+  ViewModels</code></pre>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>はい、<code>Services</code>・<code>ViewModels</code> と並べて <code>Repositories</code> をルート直下に追加する形で問題ありません。ただ、質問文では <code>Repositores</code> とタイプミスされているようなので、正しくは <strong><code>Repositories</code></strong>（<code>i</code> が入ります）です。フォルダ名を間違えると、Visual Studioの既定設定（フォルダ構成に合わせて名前空間を自動生成する設定）で <code>manager.Repositores</code> のような名前空間になってしまいます。</p>
+<pre><code>root
+  Repositories
+    IHintTextBulkMergeRepository.cs
+    HintTextBulkMergeRepository.cs
+  Services
+    HintTextUploadService.cs
+  ViewModels
+    HintTextUploadViewModel.cs  （既存）</code></pre>
+    <p>先ほど作成したコードの名前空間 <code>manager.Repositories</code> とも一致するので、この構成で大丈夫です。Repositoryの数が増えてきたら、<code>Repositories/HintText/</code> のように機能ごとにサブフォルダで分けることも検討できますが、現時点では1クラスだけなのでフラットな構成で十分です。</p>
+  </div></div>
+</section>
+
+<!-- ============ GROUP 4 ============ -->
+<h2 class="group" id="g4">この書き出し</h2>
+
+<!-- 20 -->
+<section class="turn">
+  <div class="msg q"><div class="who"><b>あなた</b>#20</div><div class="body">
+    <p>このチャットをhtmlで出力してください。</p>
+  </div></div>
+  <div class="msg a"><div class="who"><b>Claude</b></div><div class="body">
+    <p>このページがその書き出しです。</p>
+  </div></div>
+</section>
+
+<footer>書き出し日 2026年10月17日</footer>
+</div>
+</body>
+</html>
